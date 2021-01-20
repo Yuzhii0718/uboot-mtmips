@@ -1,0 +1,198 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2024 MediaTek Inc. All Rights Reserved.
+ *
+ * Author: Weijie Gao <weijie.gao@mediatek.com>
+ */
+
+#include "bootmenu_common.h"
+#include "autoboot_helper.h"
+#include "mmc_helper.h"
+
+static const struct data_part_entry snor_emmc_parts[] = {
+	{
+		.name = "ATF BL2",
+		.abbr = "bl2",
+		.env_name = "bootfile.bl2",
+		.validate = generic_validate_bl2,
+		.write = generic_mtd_write_bl2,
+	},
+	{
+		.name = "ATF FIP",
+		.abbr = "fip",
+		.env_name = "bootfile.fip",
+		.validate = generic_validate_fip,
+		.write = generic_mtd_write_fip,
+		.post_action = UPGRADE_ACTION_CUSTOM,
+		.do_post_action = generic_invalidate_env,
+	},
+#ifdef CONFIG_MTK_FIP_SUPPORT
+	{
+		.name = "BL31 of ATF FIP",
+		.abbr = "bl31",
+		.env_name = "bootfile.bl31",
+		.validate = generic_validate_bl31,
+		.write = generic_mtd_update_bl31,
+		.post_action = UPGRADE_ACTION_CUSTOM,
+	},
+	{
+		.name = "BL33 of ATF FIP",
+		.abbr = "bl33",
+		.env_name = "bootfile.bl33",
+		.validate = generic_validate_bl33,
+		.write = generic_mtd_update_bl33,
+		.post_action = UPGRADE_ACTION_CUSTOM,
+		.do_post_action = generic_invalidate_env,
+	},
+#endif
+#ifdef CONFIG_MTK_CHAINLOAD_BL
+	{
+		.name = "Next stage bootloader",
+		.abbr = "nextbl",
+		.env_name = "bootfile.nextbl",
+		.validate = generic_validate_next_bl,
+#ifdef CONFIG_MTK_NEXT_BL_IN_EMMC
+		.write = generic_mmc_write_next_bl,
+#else
+		.write = generic_mtd_write_next_bl,
+#endif
+	},
+#endif
+	{
+		.name = "Firmware",
+		.abbr = "fw",
+		.env_name = "bootfile",
+		.post_action = UPGRADE_ACTION_BOOT,
+		.validate = generic_mmc_validate_fw,
+		.write = generic_mmc_write_fw,
+	},
+	{
+		.name = "Single image (SPI-NOR)",
+		.abbr = "simg-snor",
+		.env_name = "bootfile.simg-snor",
+		.write = generic_mtd_write_simg,
+	},
+	{
+		.name = "Single image (eMMC)",
+		.abbr = "simg-emmc",
+		.env_name = "bootfile.simg-emmc",
+		.write = generic_mmc_write_simg,
+	},
+	{
+		.name = "Partition table",
+		.abbr = "gpt",
+		.env_name = "bootfile.gpt",
+		.write = generic_mmc_write_gpt,
+	}
+};
+
+void board_upgrade_data_parts(const struct data_part_entry **dpes, u32 *count)
+{
+	*dpes = snor_emmc_parts;
+	*count = ARRAY_SIZE(snor_emmc_parts);
+}
+
+int board_boot_default(bool do_boot)
+{
+	return generic_mmc_boot_image(do_boot);
+}
+
+#ifdef CONFIG_MTK_CHAINLOAD_BL
+int board_chainload_default(bool do_boot)
+{
+#ifdef CONFIG_MTK_NEXT_BL_IN_EMMC
+	return generic_mmc_boot_next_bl(do_boot);
+#else
+	return generic_mtd_boot_next_bl(do_boot);
+#endif
+}
+#endif
+
+static const struct bootmenu_entry snor_emmc_bootmenu_entries[] = {
+#ifdef CONFIG_MTK_AUTO_CHAINLOAD_BL
+	{
+		.desc = "Chainload next-stage bootloader (Default)",
+		.cmd = "mtkchainload"
+	},
+	{
+		.desc = "Startup system",
+		.cmd = "mtkboardboot"
+	},
+#else
+	{
+		.desc = "Startup system (Default)",
+		.cmd = "mtkboardboot"
+	},
+#endif
+	{
+		.desc = "Upgrade firmware",
+		.cmd = "mtkupgrade fw"
+	},
+	{
+		.desc = "Upgrade ATF BL2",
+		.cmd = "mtkupgrade bl2"
+	},
+	{
+		.desc = "Upgrade ATF FIP",
+		.cmd = "mtkupgrade fip"
+	},
+#ifdef CONFIG_MTK_FIP_SUPPORT
+	{
+		.desc = "  Upgrade ATF BL31 only",
+		.cmd = "mtkupgrade bl31"
+	},
+	{
+		.desc = "  Upgrade bootloader only",
+		.cmd = "mtkupgrade bl33"
+	},
+#endif
+	{
+		.desc = "Upgrade partition table",
+		.cmd = "mtkupgrade gpt"
+	},
+	{
+		.desc = "Upgrade single image (SPI-NOR)",
+		.cmd = "mtkupgrade simg-snor"
+	},
+	{
+		.desc = "Upgrade single image (eMMC)",
+		.cmd = "mtkupgrade simg-emmc"
+	},
+#ifdef CONFIG_MTK_CHAINLOAD_BL
+	{
+		.desc = "Upgrade next-stage bootloader",
+		.cmd = "mtkupgrade nextbl"
+	},
+#ifndef CONFIG_MTK_AUTO_CHAINLOAD_BL
+	{
+		.desc = "Chainload next-stage bootloader",
+		.cmd = "mtkchainload"
+	},
+#endif
+#endif
+	{
+		.desc = "Load image",
+		.cmd = "mtkload"
+	},
+#ifdef CONFIG_MTK_WEB_FAILSAFE
+	{
+		.desc = "Start Web failsafe",
+		.cmd = "httpd"
+	},
+#endif
+	{
+		.desc = "Change boot configuration",
+		.cmd = "mtkbootconf"
+	},
+};
+
+void board_bootmenu_entries(const struct bootmenu_entry **menu, u32 *count)
+{
+	*menu = snor_emmc_bootmenu_entries;
+	*count = ARRAY_SIZE(snor_emmc_bootmenu_entries);
+}
+
+void default_boot_set_defaults(void *fdt)
+{
+	mmc_boot_set_defaults(fdt);
+}
