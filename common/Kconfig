@@ -1274,3 +1274,10 @@ config IO_TRACE
 	  confirm that the driver behaves the same way before and after a code
 	  change. To add support for your architecture, add '#include
 	  <iotrace.h>' to the bottom of arch/<arch>/include/asm/io.h and test.
+
+config FDT_NO_BOOTARGS_OVERRIDE
+	bool "Do not override bootargs in FDT"
+	depends on OF_LIBFDT
+	help
+	  Enable this option to avoid bootargs in fdt being overrided by that
+	  set in environment.
