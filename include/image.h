@@ -414,6 +414,8 @@ struct bootm_headers {
 #define BOOTM_STATE_PRE_LOAD	0x00000800
 #define BOOTM_STATE_MEASURE	0x00001000
 	int		state;
+
+	uint32_t	fw_ar_ver;	/* for firmware anti-rollback version */
 };
 
 extern struct bootm_headers images;
@@ -1103,6 +1105,7 @@ int booti_setup(ulong image, ulong *relocated_addr, ulong *size,
 #define FIT_FPGA_PROP		"fpga"
 #define FIT_FIRMWARE_PROP	"firmware"
 #define FIT_STANDALONE_PROP	"standalone"
+#define FIT_FW_AR_VER_PROP	"fw_ar_ver"
 #define FIT_SCRIPT_PROP		"script"
 #define FIT_PHASE_PROP		"phase"
 #define FIT_TFA_BL31_PROP	"tfa-bl31"
@@ -1333,6 +1336,25 @@ int fit_add_verification_data(const char *keydir, const char *keyfile,
 			      struct image_summary *summary);
 
 /**
+ * fit_add_public_key_info() - add public key information to FDT
+ *
+ * @keydir:	Directory containing public key
+ * @keyname:	Name of public key
+ * @keydest:	FDT blob to write public key information to
+ * @required:	Required property used to indicate verify
+ *              target is config or image, ex:"conf" or "image"
+ * @algo:	Algo property used to indicate hash and rsa algorithm,
+ *              ex:"sha1,rsa2048"
+ * @cmdname:	Command name used when reporting errors
+ *
+ * returns
+ *     0, on success
+ *     < 0, on failure
+ */
+int fit_add_public_key_info(const char *keydir, const char *keyname,
+			    void *keydest, const char *required,
+			    const char *algo, const char *cmdname);
+/*
  * fit_image_verify_with_data() - Verify an image with given data
  *
  * @fit:	Pointer to the FIT format image header

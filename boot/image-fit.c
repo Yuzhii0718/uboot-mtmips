@@ -44,6 +44,15 @@ DECLARE_GLOBAL_DATA_PTR;
 #include <upl.h>
 #include <u-boot/crc.h>
 
+#ifndef USE_HOSTCC
+__weak
+#endif
+int fit_config_ar_ver_verify(const void *fit, int conf_noffset,
+			     uint32_t *ar_ver_p)
+{
+	return 0;
+}
+
 /*****************************************************************************/
 /* New uImage format routines */
 /*****************************************************************************/
@@ -2147,6 +2156,14 @@ int fit_image_load(struct bootm_headers *images, ulong addr,
 				return -EACCES;
 			}
 			puts("OK\n");
+#ifdef CONFIG_MTK_ANTI_ROLLBACK
+			puts("   Verifying FW Anti-Rollback Version ... ");
+			if (fit_config_ar_ver_verify(fit, cfg_noffset,
+						     &images->fw_ar_ver)) {
+				return -EACCES;
+			}
+			puts("OK\n");
+#endif
 		}
 
 		bootstage_mark(BOOTSTAGE_ID_FIT_CONFIG);
