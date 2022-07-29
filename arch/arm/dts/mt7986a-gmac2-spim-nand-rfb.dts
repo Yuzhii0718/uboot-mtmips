@@ -12,7 +12,8 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 	model = "mt7986-rfb";
-	compatible = "mediatek,mt7986", "mediatek,mt7986-rfb";
+	compatible = "mediatek,mt7986", "mediatek,mt7986-rfb",
+		     "mediatek,mt7986-gmac2-spim-nand-rfb";
 	chosen {
 		stdout-path = &uart0;
 		tick-timer = &timer0;
@@ -40,6 +41,10 @@
 		regulator-boot-on;
 		regulator-always-on;
 	};
+
+	bl2_verify {
+		bl2_compatible = "spim-nand";
+	};
 };
 
 &uart0 {
@@ -54,14 +59,17 @@
 
 &eth {
 	status = "okay";
-	mediatek,gmac-id = <0>;
-	phy-mode = "2500base-x";
-	mediatek,switch = "mt7531";
-	reset-gpios = <&pio 5 GPIO_ACTIVE_HIGH>;
+	mediatek,gmac-id = <1>;
+	mediatek,sgmiisys = <&sgmiisys1>;
+	phy-mode = "sgmii";
+	phy-handle = <&phy6>;
 
-	fixed-link {
-		speed = <2500>;
-		full-duplex;
+	phy6: eth-phy@6 {
+		compatible = "ethernet-phy-id67c9.de0a";
+		reg = <6>;
+		reset-gpios = <&pio 6 GPIO_ACTIVE_LOW>;
+		reset-assert-us = <600>;
+		reset-deassert-us = <20000>;
 	};
 };
 
@@ -178,6 +186,7 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&spi_flash_pins>;
 	status = "okay";
+	must_tx;
 	enhance_timing;
 	dma_ext;
 	ipm_design;
@@ -189,16 +198,12 @@
 		compatible = "jedec,spi-nor";
 		reg = <0>;
 		spi-max-frequency = <52000000>;
-		spi-rx-bus-width = <4>;
-		spi-tx-bus-width = <4>;
 	};
 
 	spi_nand@1 {
 		compatible = "spi-nand";
 		reg = <1>;
 		spi-max-frequency = <52000000>;
-		spi-rx-bus-width = <4>;
-		spi-tx-bus-width = <4>;
 	};
 };
 

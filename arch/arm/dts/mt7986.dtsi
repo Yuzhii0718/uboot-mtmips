@@ -17,10 +17,6 @@
 	#address-cells = <1>;
 	#size-cells = <1>;
 
-	config {
-		u-boot,mmc-env-partition = "u-boot-env";
-	};
-
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -47,6 +43,14 @@
 			compatible = "arm,cortex-a53";
 			reg = <0x3>;
 			mediatek,hwver = <&hwver>;
+		};
+	};
+
+	firmware {
+		optee {
+			status = "okay";
+			method = "smc";
+			compatible = "linaro,optee-tz";
 		};
 	};
 
@@ -247,23 +251,32 @@
 	};
 
 	spi0: spi@1100a000 {
-		compatible = "mediatek,ipm-spi";
+		compatible = "mediatek,spi-ipm";
 		reg = <0x1100a000 0x100>;
-		clocks = <&infracfg CLK_INFRA_SPI0_CK>,
-			 <&topckgen CLK_TOP_SPI_SEL>;
+		clocks = <&topckgen CLK_TOP_MPLL_D2>,
+			 <&topckgen CLK_TOP_SPI_SEL>,
+			 <&infracfg CLK_INFRA_SPI0_CK>,
+			 <&infracfg CLK_INFRA_SPI0_HCK_CK>;
 		assigned-clocks = <&topckgen CLK_TOP_SPI_SEL>,
 				  <&infracfg CLK_INFRA_SPI0_SEL>;
 		assigned-clock-parents = <&topckgen CLK_TOP_MPLL_D2>,
 					 <&topckgen CLK_TOP_SPI_SEL>;
-		clock-names = "sel-clk", "spi-clk";
+		clock-names = "parent-clk", "sel-clk", "spi-clk", "hclk";
 		interrupts = <GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>;
 		status = "disabled";
 	};
 
 	spi1: spi@1100b000 {
-		compatible = "mediatek,ipm-spi";
+		compatible = "mediatek,spi-ipm";
 		reg = <0x1100b000 0x100>;
 		interrupts = <GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&topckgen CLK_TOP_MPLL_D2>,
+			 <&topckgen CLK_TOP_SPIM_MST_SEL>,
+			 <&infracfg CLK_INFRA_SPI1_CK>,
+			 <&infracfg CLK_INFRA_SPI1_HCK_CK>;
+		assigned-clocks = <&topckgen CLK_TOP_SPIM_MST_SEL>;
+		assigned-clock-parents = <&topckgen CLK_TOP_MPLL_D2>;
+		clock-names = "parent-clk", "sel-clk", "spi-clk", "hclk";
 		status = "disabled";
 	};
 
