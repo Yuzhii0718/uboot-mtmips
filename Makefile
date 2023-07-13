@@ -1421,11 +1421,23 @@ endif
 	@# disabling OF_BOARD.
 	$(call cmd,ofcheck,$(KCONFIG_CONFIG))
 
+
+ifeq ($(CONFIG_MTK_SECURE_BOOT),y)
+ifeq ($(CONFIG_FIT_KEY),)
+	$(error "Must set FIT_KEY when enable secure boot")
+endif
+FIT_KEY_DIR := $(shell dirname $(CONFIG_FIT_KEY))
+FIT_KEY_NAME := $(shell basename $(CONFIG_FIT_KEY) | cut -d '.' -f 1)
+endif
+
 PHONY += dtbs dtbs_check
 dtbs: dts/dt.dtb
 	@:
 dts/dt.dtb: dtbs_prepare u-boot
 	$(Q)$(MAKE) $(build)=dts dtbs
+ifneq ($(CONFIG_MTK_SECURE_BOOT),)
+	$(objtree)/tools/fdt_add_pubkey -a $(CONFIG_KEY_ALG) -k $(FIT_KEY_DIR) -n $(FIT_KEY_NAME) -r conf $@
+endif
 
 ifeq ($(CONFIG_MTK_FW_ENCRYPT),y)
 ifeq ($(CONFIG_MTK_FW_ENCRYPT_VIA_BL31),y)
