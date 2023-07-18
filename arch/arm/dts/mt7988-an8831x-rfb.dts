@@ -79,18 +79,18 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&mdio_pins>;
 	phy-mode = "usxgmii";
-	phy-handle = <&phy8>;
+	phy-handle = <&phy24>;
 
 	mdio {
-		clock-frequency = <10500000>;
+		clock-frequency = <12000000>;
 	};
 
-	phy8: eth-phy@8 {
-		compatible = "ethernet-phy-id31c3.1c12";
-		reg = <8>;
+	phy24: eth-phy@24 {
+		compatible = "ethernet-phy-id7500.9410";
+		reg = <24>;
 		reset-gpios = <&pio 71 GPIO_ACTIVE_LOW>;
-		reset-assert-us = <100000>;
-		reset-deassert-us = <2210000>;
+		reset-assert-us = <200000>;
+		reset-deassert-us = <350000>;
 	};
 };
 
@@ -220,6 +220,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
+	must_tx;
 	enhance_timing;
 	dma_ext;
 	ipm_design;
@@ -242,6 +243,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
+	must_tx;
 	enhance_timing;
 	dma_ext;
 	ipm_design;
