@@ -1427,6 +1427,17 @@ dtbs: dts/dt.dtb
 dts/dt.dtb: dtbs_prepare u-boot
 	$(Q)$(MAKE) $(build)=dts dtbs
 
+ifeq ($(CONFIG_MTK_FW_ENCRYPT),y)
+ifeq ($(CONFIG_MTK_FW_ENCRYPT_VIA_BL31),y)
+	$(srctree)/tools/kernel_encrypt_add_node.sh $@ tee_aes256 kernel_key
+	$(srctree)/tools/kernel_encrypt_add_node.sh $@ tee_aes256 rootfs_key
+endif
+ifeq ($(CONFIG_MTK_FW_ENCRYPT_VIA_OPTEE),y)
+	$(srctree)/tools/kernel_encrypt_add_node.sh $@ optee_aes256 kernel_key
+	$(srctree)/tools/kernel_encrypt_add_node.sh $@ optee_aes256 rootfs_key
+endif
+endif
+
 dtbs_prepare: prepare3
 
 ifneq ($(filter dtbs_check, $(MAKECMDGOALS)),)
