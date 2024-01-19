@@ -134,6 +134,10 @@ struct mtk_i2p5ge_fw_info {
 
 struct mtk_i2p5ge_priv {
 	void __iomem *reg_base;
+	bool half;
+	bool gbe_min_ipg_11_bytes;
+	bool retrain;
+	bool auto_downshift;
 };
 
 static inline void pbus_write(struct mtk_i2p5ge_priv *priv, u32 offset,
@@ -178,6 +182,12 @@ static int mt798x_i2p5ge_phy_probe(struct phy_device *phydev)
 		return -ENODEV;
 	}
 
+	/* Initialize with default values */
+	priv->half = false;
+	priv->gbe_min_ipg_11_bytes = false;
+	priv->retrain = true;
+	priv->auto_downshift = true;
+
 	phydev->priv = priv;
 
 	return 0;
@@ -185,6 +195,15 @@ static int mt798x_i2p5ge_phy_probe(struct phy_device *phydev)
 
 static int mt798x_i2p5ge_phy_config(struct phy_device *phydev)
 {
+	struct mtk_i2p5ge_priv *priv = phydev->priv;
+	ofnode node = phydev->node;
+
+	if (ofnode_valid(node)) {
+		priv->half = ofnode_read_bool(node, "half-en");
+		priv->gbe_min_ipg_11_bytes = ofnode_read_bool(node, "gbe-min-ipg-11-bytes-en");
+		priv->retrain = !ofnode_read_bool(node, "retrain-dis");
+		priv->auto_downshift = !ofnode_read_bool(node, "auto-downshift-dis");
+	}
 
 	/* Setup LED */
 	phy_set_bits_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED0_ON_CTRL,
@@ -205,20 +224,50 @@ static int mt798x_i2p5ge_phy_config(struct phy_device *phydev)
 	mtk_tr_modify(phydev, 0x0, 0xf, 0x3c, AUTO_NP_10XEN,
 		      FIELD_PREP(AUTO_NP_10XEN, 0x1));
 
-	/* Set HW auto downshift */
-	mtk_phy_select_page(phydev, MTK_PHY_PAGE_EXTENDED_1);
-	phy_set_bits_mmd(phydev, MDIO_MMD_VEND1,
-			 MTK_PHY_AUX_CTRL_AND_STATUS,
-			 MTK_PHY_ENABLE_DOWNSHIFT);
-	mtk_phy_restore_page(phydev);
+	/* Set HW auto downshift according to dts */
+	if (priv->auto_downshift) {
+		mtk_phy_select_page(phydev, MTK_PHY_PAGE_EXTENDED_1);
+		phy_set_bits_mmd(phydev, MDIO_MMD_VEND1,
+				 MTK_PHY_AUX_CTRL_AND_STATUS,
+				 MTK_PHY_ENABLE_DOWNSHIFT);
+		mtk_phy_restore_page(phydev);
+	} else {
+		mtk_phy_select_page(phydev, MTK_PHY_PAGE_EXTENDED_1);
+		phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1,
+				   MTK_PHY_AUX_CTRL_AND_STATUS,
+				   MTK_PHY_ENABLE_DOWNSHIFT);
+		mtk_phy_restore_page(phydev);
+	}
 
 	/* Configure parallel detction functionality */
-	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1,
-			   MTK_PHY_PMA_PMD_SPEED_ABILITY,
-			   CAP_10T_HDX | CAP_100X_HDX);
-	phy_clear_bits_mmd(phydev, MDIO_DEVAD_NONE,
-			   MII_ADVERTISE,
-			   ADVERTISE_10HALF | ADVERTISE_100HALF);
+	if (priv->half) {
+		phy_set_bits_mmd(phydev, MDIO_MMD_VEND1,
+				 MTK_PHY_PMA_PMD_SPEED_ABILITY,
+				 CAP_10T_HDX | CAP_100X_HDX);
+
+		if (phydev->advertising & ADVERTISED_10baseT_Full) {
+			phy_set_bits_mmd(phydev, MDIO_DEVAD_NONE,
+					 MII_ADVERTISE, ADVERTISE_10HALF);
+		} else {
+			phy_clear_bits_mmd(phydev, MDIO_DEVAD_NONE,
+					   MII_ADVERTISE, ADVERTISE_10HALF);
+		}
+
+		if (phydev->advertising & ADVERTISED_100baseT_Full) {
+			phy_set_bits_mmd(phydev, MDIO_DEVAD_NONE,
+					 MII_ADVERTISE, ADVERTISE_100HALF);
+		} else {
+			phy_clear_bits_mmd(phydev, MDIO_DEVAD_NONE,
+					   MII_ADVERTISE, ADVERTISE_100HALF);
+		}
+	} else {
+		phy_clear_bits_mmd(phydev, MDIO_MMD_VEND1,
+				   MTK_PHY_PMA_PMD_SPEED_ABILITY,
+				   CAP_10T_HDX | CAP_100X_HDX);
+		phy_clear_bits_mmd(phydev, MDIO_DEVAD_NONE,
+				   MII_ADVERTISE,
+				   ADVERTISE_10HALF | ADVERTISE_100HALF);
+	}
 
 	return 0;
 }
@@ -446,11 +495,18 @@ cleanup:
 
 static int mt7987_i2p5ge_phy_config(struct phy_device *phydev)
 {
+	struct mtk_i2p5ge_priv *priv = phydev->priv;
+
 	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, MTK_PHY_LED0_ON_CTRL,
 			   MTK_PHY_LED_ON_POLARITY);
 
-	phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, MT7987_OPTIONS,
-			   NORMAL_RETRAIN_DISABLE);
+	if (priv->retrain) {
+		phy_clear_bits_mmd(phydev, MDIO_MMD_VEND2, MT7987_OPTIONS,
+				   NORMAL_RETRAIN_DISABLE);
+	} else {
+		phy_set_bits_mmd(phydev, MDIO_MMD_VEND2, MT7987_OPTIONS,
+				 NORMAL_RETRAIN_DISABLE);
+	}
 
 	return mt798x_i2p5ge_phy_config(phydev);
 }
@@ -576,14 +632,17 @@ static int mt798x_i2p5ge_phy_startup(struct phy_device *phydev)
 			break;
 
 		case PHY_AUX_SPD_1000:
-			pbus_rmw(priv, FIFO_CTRL,
-				 TX_SFIFO_IDLE_CNT_MASK | TX_SFIFO_DEL_IPG_WM_MASK,
-				 FIELD_PREP(TX_SFIFO_IDLE_CNT_MASK, 0x1) |
-				 FIELD_PREP(TX_SFIFO_DEL_IPG_WM_MASK, 0x10));
-			pbus_rmw(priv, MIN_IPG_NUM, LS_MIN_IPG_NUM_MASK,
-				 FIELD_PREP(LS_MIN_IPG_NUM_MASK, 0xa));
-			pbus_rmw(priv, FC_LWM, TX_FC_LWM_MASK,
-				 FIELD_PREP(TX_FC_LWM_MASK, 0x340));
+			/* Apply gbe_min_ipg_11_bytes setting for 1000Mbps */
+			if (!priv->gbe_min_ipg_11_bytes) {
+				pbus_rmw(priv, FIFO_CTRL,
+					 TX_SFIFO_IDLE_CNT_MASK | TX_SFIFO_DEL_IPG_WM_MASK,
+					 FIELD_PREP(TX_SFIFO_IDLE_CNT_MASK, 0x1) |
+					 FIELD_PREP(TX_SFIFO_DEL_IPG_WM_MASK, 0x10));
+				pbus_rmw(priv, MIN_IPG_NUM, LS_MIN_IPG_NUM_MASK,
+					 FIELD_PREP(LS_MIN_IPG_NUM_MASK, 0xa));
+				pbus_rmw(priv, FC_LWM, TX_FC_LWM_MASK,
+					 FIELD_PREP(TX_FC_LWM_MASK, 0x340));
+			}
 			phydev->speed = SPEED_1000;
 			break;
 

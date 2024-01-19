@@ -1,0 +1,68 @@
+MediaTek MT7987/MT7988 built-in 2.5Gb Ethernet PHY
+
+This document describes the device tree bindings for MediaTek MT7987/MT7988
+built-in 2.5Gb Ethernet PHY.
+
+Required properties:
+- reg: The phy address
+
+Optional properties:
+- half-en: Boolean. The uplink XGMAC of this PHY doesn't support half duplex.
+  As parallel detection is enabled in this PHY, we disabled the PHY's
+  half-duplex capability by default. If you really want to connect to those
+  devices supporting only 10M/half or 100M/half and don't care about duplex
+  mismatch, use this option to force link up. Note that this PHY will still
+  link up at full duplex.
+
+- gbe-min-ipg-11-bytes-en: Boolean. If present, enables 11-byte minimum
+  inter-packet gap for 1000Mbps link speed. When not present (by default),
+  the PHY uses optimized IPG settings for better performance. This option is
+  basically for those legacy 1G link partners which only accept higher IPG
+  transfer.
+
+- retrain-dis: Boolean. If present, this will block fast retrain and normal
+  retrain at the same time. Not recommend to use this option unless you know
+  what you're doing.
+
+- auto-downshift-dis: Boolean. If present, disables the hardware
+  auto-downshift feature. When not present (by default), the PHY will
+  automatically downshift link speed when link quality is poor.
+
+- pinctrl-names: Accepts "i2p5gbe-led" pinctrl for PHY status indicator
+
+Notes:
+- Firmware loading is required for proper operation. The driver expects
+  firmware files to be available through weak symbol functions provided by
+  boards.
+
+Examples:
+/* without option */
+&eth1 {
+	status = "okay";
+	phy-mode = "xgmii";
+	phy-handle = <&phy15>;
+
+	phy15: ethernet-phy@15 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <15>;
+		phy-mode = "xgmii";
+	};
+};
+
+/* with options/pinctrl */
+&eth1 {
+	status = "okay";
+	pinctrl-names = "i2p5gbe-led";
+	pinctrl-0 = <&i2p5gbe_led0_pins>;
+	phy-mode = "xgmii";
+	phy-handle = <&phy15>;
+
+	phy15: ethernet-phy@15 {
+		compatible = "ethernet-phy-ieee802.3-c45";
+		reg = <15>;
+		half-en;
+		gbe-min-ipg-11-bytes-en;
+		auto-downshift-dis;
+		phy-mode = "xgmii";
+	};
+};
