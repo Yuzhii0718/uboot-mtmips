@@ -846,6 +846,11 @@ config LZMA_SIZE_OPTIMIZATION
 	  than performance. This can be a loss of 15-20% in decompression
 	  speed, but a savings of close to two kilobytes in many cases.
 
+config XZ
+	bool "Enable XZ decompression support"
+	help
+	  This enables support for XZ
+
 config LZO
 	bool "Enable LZO decompression support"
 	help
