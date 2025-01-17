@@ -47,24 +47,3 @@
 	pinctrl-0 = <&pcie1_pins>;
 	status = "disabled";
 };
-
-&spi0 {
-	compatible = "mediatek,ipm-spi";
-	clocks = <&infracfg CLK_INFRA_104M_SPI0>,
-		 <&topckgen CLK_TOP_SPI_SEL>;
-	clock-names = "spi-clk", "sel-clk";
-};
-
-&spi1 {
-	compatible = "mediatek,ipm-spi";
-	clocks = <&infracfg CLK_INFRA_104M_SPI1>,
-		 <&topckgen CLK_TOP_SPIM_MST_SEL>;
-	clock-names = "spi-clk", "sel-clk";
-};
-
-&spi2 {
-	compatible = "mediatek,ipm-spi";
-	clocks = <&infracfg CLK_INFRA_104M_SPI2_BCK>,
-		 <&topckgen CLK_TOP_SPI_SEL>;
-	clock-names = "spi-clk", "sel-clk";
-};
