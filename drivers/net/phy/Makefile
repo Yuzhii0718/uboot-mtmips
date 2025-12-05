@@ -16,6 +16,7 @@ obj-$(CONFIG_PHY_AIROHA_AN8811HB) += air_an8811hb.o
 obj-$(CONFIG_PHY_AIROHA_EN8801S) += air_en8801s.o
 obj-$(CONFIG_PHY_AIROHA_EN8811H) += air_en8811h.o
 obj-$(CONFIG_PHY_AQUANTIA) += aquantia.o
+obj-$(CONFIG_PHY_AS21XXX) += aeon_as21xx.o
 obj-$(CONFIG_PHY_ATHEROS) += atheros.o
 obj-$(CONFIG_PHY_BROADCOM) += broadcom.o
 obj-$(CONFIG_PHY_CORTINA) += cortina.o

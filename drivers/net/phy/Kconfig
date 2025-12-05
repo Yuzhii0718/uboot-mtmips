@@ -172,6 +172,11 @@ config PHY_AQUANTIA_FW_MAX_SIZE
 	  The maximum size of the Aquantia PHY firmware. This is used to
 	  allocate a buffer to load the firmware into.
 
+config PHY_AS21XXX
+    bool "Aeonsemi AS21XXX Ethernet PHYs support"
+    select PHY_GIGE
+	select PHYLIB_10G
+
 config PHY_ATHEROS
 	bool "Atheros Ethernet PHYs support"
 
