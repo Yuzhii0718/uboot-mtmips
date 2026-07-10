@@ -179,15 +179,53 @@ static int eth_init_qca953x(void)
 {
 	void __iomem *rregs = map_physmem(AR71XX_RESET_BASE, AR71XX_RESET_SIZE,
 					  MAP_NOCACHE);
-	const u32 mask = QCA953X_RESET_GE0_MAC | QCA953X_RESET_GE0_MDIO |
-			 QCA953X_RESET_GE1_MAC | QCA953X_RESET_GE1_MDIO |
-			 QCA953X_RESET_ETH_SWITCH_ANALOG |
-			 QCA953X_RESET_ETH_SWITCH;
+	void __iomem *pregs = map_physmem(AR71XX_PLL_BASE, AR71XX_PLL_SIZE,
+					  MAP_NOCACHE);
+	void __iomem *gregs = map_physmem(QCA953X_GMAC_BASE, QCA953X_GMAC_SIZE,
+					  MAP_NOCACHE);
+	const u32 mac_mask = QCA953X_RESET_GE0_MAC | QCA953X_RESET_GE0_MDIO |
+			     QCA953X_RESET_GE1_MAC | QCA953X_RESET_GE1_MDIO;
 
-	setbits_be32(rregs + AR934X_RESET_REG_RESET_MODULE, mask);
-	mdelay(1);
-	clrbits_be32(rregs + AR934X_RESET_REG_RESET_MODULE, mask);
-	mdelay(1);
+	/*
+	 * QCA953X switch clock setup — value 0x231 from Qualcomm
+	 * reference code. This is NOT the same as AR934X (0x570/0x271).
+	 */
+	writel(0x231, pregs + QCA953X_PLL_SWITCH_CLOCK_CONTROL_REG);
+
+	/*
+	 * Configure GMAC interface mode (0x18070000).
+	 * GE1→S27 switch uses RGMII with RX/RXDV delay=3.
+	 */
+	writel(AR934X_ETH_CFG_RGMII_GMAC0 |
+	       (3 << AR934X_ETH_CFG_RXD_DELAY_SHIFT) |
+	       (3 << AR934X_ETH_CFG_RDV_DELAY_SHIFT),
+	       gregs + QCA953X_GMAC_REG_ETH_CFG);
+
+	/*
+	 * ETH XMII control: TX invert, RX delay=2, TX delay=2, GigE enable.
+	 * TX delay=2 is required for gmac1 RGMII interface to the S27 switch.
+	 * (gmac1 initializes last in the reference code, so its value wins.)
+	 */
+	writel(BIT(31) | (2 << 28) | (2 << 26) | BIT(25),
+	       pregs + QCA953X_PLL_ETH_XMII_CONTROL_REG);
+
+	/* Staggered PHY analog + digital reset (switch analog = GE1_PHY) */
+	setbits_be32(rregs + QCA953X_RESET_REG_RESET_MODULE,
+		     QCA953X_RESET_ETH_SWITCH_ANALOG |
+		     QCA953X_RESET_ETH_SWITCH);
+	mdelay(100);
+	clrbits_be32(rregs + QCA953X_RESET_REG_RESET_MODULE,
+		     QCA953X_RESET_ETH_SWITCH_ANALOG);
+	mdelay(100);
+	clrbits_be32(rregs + QCA953X_RESET_REG_RESET_MODULE,
+		     QCA953X_RESET_ETH_SWITCH);
+	udelay(100);
+
+	/* Reset and un-reset MACs + MDIO */
+	setbits_be32(rregs + QCA953X_RESET_REG_RESET_MODULE, mac_mask);
+	mdelay(100);
+	clrbits_be32(rregs + QCA953X_RESET_REG_RESET_MODULE, mac_mask);
+	mdelay(100);
 
 	return 0;
 }
