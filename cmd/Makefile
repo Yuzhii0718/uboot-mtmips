@@ -242,6 +242,9 @@ obj-$(CONFIG_CMD_AVB) += avb.o
 # Button check
 obj-$(CONFIG_CMD_BTNCHK) += btnchk.o led_blink.o
 
+# GPIO hardware verification
+obj-$(CONFIG_CMD_GPIOTEST) += gpiotest.o
+
 # Foundries.IO SCP03
 obj-$(CONFIG_CMD_SCP03) += scp03.o
 
