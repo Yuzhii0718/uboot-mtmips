@@ -64,6 +64,9 @@ void main_loop(void)
 
 	process_button_cmds();
 
+	if (IS_ENABLED(CONFIG_CMD_BTNCHK))
+		run_command("btnchk", 0);
+
 	s = bootdelay_process();
 	if (cli_process_fdt(&s))
 		cli_secure_boot_cmd(s);

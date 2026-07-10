@@ -3153,6 +3153,20 @@ config CMD_STACKPROTECTOR_TEST
 	  The stackprot_test command will force a stack overrun to test
 	  the stack smashing detection mechanisms.
 
+config CMD_BTNCHK
+	bool "Button check command"
+	depends on BUTTON && LED
+	default n
+	help
+	  Enable btnchk command which checks configured button/GPIO states
+	  at boot. If any key is held for 4 seconds, it turns on the system
+	  LED and runs httpd (web failsafe mode).
+
+	  Environment variables:
+	    btnchk_key  - comma-separated button uclass labels (default: reset)
+	    btnchk_gpio - comma-separated GPIO names for direct GPIO access
+	                 (supports '!' for active-low toggle)
+
 endmenu
 
 config CMD_UBI
