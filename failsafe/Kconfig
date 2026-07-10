@@ -6,6 +6,9 @@ config WEBUI_FAILSAFE
 	bool "Enable Failsafe Web UI"
 	select MTK_TCP
 	select MTK_HTTPD
+	select MTK_DHCPD
 	default n
 	help
-	  Enable Web based failsafe UI
+	  Enable Web based failsafe UI.
+	  This also starts a minimal DHCP server so that a directly
+	  connected PC can obtain an IP automatically.

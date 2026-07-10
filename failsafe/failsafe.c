@@ -17,6 +17,10 @@
 #include <vsprintf.h>
 #include "fs.h"
 
+#ifdef CONFIG_MTK_DHCPD
+#include <net/mtk_dhcpd.h>
+#endif
+
 static u32 upload_data_id;
 static const void *upload_data;
 static size_t upload_size;
@@ -349,7 +353,16 @@ int start_web_failsafe(void)
 	httpd_register_uri_handler(inst, "/style.css", &style_handler, NULL);
 	httpd_register_uri_handler(inst, "", &not_found_handler, NULL);
 
+#ifdef CONFIG_MTK_DHCPD
+	mtk_dhcpd_start();
+	printf("DHCP server started\n");
+#endif
+
 	net_loop(MTK_TCP);
+
+#ifdef CONFIG_MTK_DHCPD
+	mtk_dhcpd_stop();
+#endif
 
 	return 0;
 }
