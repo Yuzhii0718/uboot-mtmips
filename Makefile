@@ -2604,6 +2604,7 @@ distclean: mrproper
 		-o -name GPATH -o -name GRTAGS -o -name GSYMS -o -name GTAGS \) \
 		-type f -print | xargs rm -f
 	rm -rf output_mips
+	rm -rf output_qcamips
 
 # Modified for U-Boot, the kernel figures this out through it's own variable
 clean-dirs	:= $(foreach f,$(u-boot-alldirs),$(if $(wildcard $(srctree)/$f/Makefile),$f))
