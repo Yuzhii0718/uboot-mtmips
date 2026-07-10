@@ -685,16 +685,25 @@ static int ag7xxx_mii_setup(struct udevice *dev)
 	    priv->model == AG7XXX_MODEL_AG953X ||
 	    priv->model == AG7XXX_MODEL_AG955X ||
 	    priv->model == AG7XXX_MODEL_AG956X) {
+		/*
+		 * Use phyregs for MII_MGMT_CFG because that's where the
+		 * actual MDIO bus registers live. On QCA953X, the mdio
+		 * node is inside gmac1, so gmac0's phyregs points to
+		 * gmac1 (0x1a000000) while regs points to gmac0
+		 * (0x19000000). Writing MII_MGMT_CFG to the wrong base
+		 * would leave the MDIO bus unconfigured and cause
+		 * switch PHY access to hang.
+		 */
 		writel(AG7XXX_ETH_MII_MGMT_CFG_RESET | reg,
-		       priv->regs + AG7XXX_ETH_MII_MGMT_CFG);
-		writel(reg, priv->regs + AG7XXX_ETH_MII_MGMT_CFG);
+		       priv->phyregs + AG7XXX_ETH_MII_MGMT_CFG);
+		writel(reg, priv->phyregs + AG7XXX_ETH_MII_MGMT_CFG);
 		return 0;
 	}
 
 	for (i = 0; i < 10; i++) {
 		writel(AG7XXX_ETH_MII_MGMT_CFG_RESET | div,
-		       priv->regs + AG7XXX_ETH_MII_MGMT_CFG);
-		writel(div, priv->regs + AG7XXX_ETH_MII_MGMT_CFG);
+		       priv->phyregs + AG7XXX_ETH_MII_MGMT_CFG);
+		writel(div, priv->phyregs + AG7XXX_ETH_MII_MGMT_CFG);
 
 		/* Check the switch */
 		ret = ag7xxx_switch_reg_read(priv->bus, 0x10c, &reg);
@@ -934,19 +943,23 @@ static int ag933x_phy_setup_reset_set(struct udevice *dev, int port)
 static int ag933x_phy_setup_reset_fin(struct udevice *dev, int port)
 {
 	struct ar7xxx_eth_priv *priv = dev_get_priv(dev);
-	int ret;
+	int ret, timeout;
 	u16 reg;
 
 	if (priv->model == AG7XXX_MODEL_AG953X ||
 	    priv->model == AG7XXX_MODEL_AG955X ||
 	    priv->model == AG7XXX_MODEL_AG956X) {
+		timeout = 100;
 		do {
 			ret = ag7xxx_switch_read(priv->bus, port, MII_BMCR, &reg);
 			if (ret < 0)
 				return ret;
+			if (--timeout <= 0)
+				break;
 			mdelay(10);
 		} while (reg & BMCR_RESET);
 	} else {
+		timeout = 100;
 		do {
 			ret = ag7xxx_mdio_read(priv->bus, port, 0, MII_BMCR);
 			if (ret < 0)
