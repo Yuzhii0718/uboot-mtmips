@@ -39,6 +39,7 @@ CONFIG_SYS_PROMPT="qca953x # "
 # CONFIG_CMD_CRC32 is not set
 CONFIG_CMD_MEMTEST=y
 CONFIG_CMD_SPI=y
+CONFIG_CMD_SF=y
 CONFIG_CMD_MTDPARTS=y
 CONFIG_MTDIDS_DEFAULT="nor0=spi-flash.0"
 CONFIG_MTDPARTS_DEFAULT="mtdparts=spi-flash.0:360k(u-boot),32k(u-boot-env),2776k(rootfs),800k(uImage),64k(mib0),64k(ART)"
