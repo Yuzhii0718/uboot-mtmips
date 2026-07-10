@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2026
+ *
+ * MW305R V9.0 / Mercury 1MB Flash Router
+ * SoC: MediaTek MT7628KN with 8MB internal DDR RAM
+ */
+
+/dts-v1/;
+
+#include "mt7628a.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+
+/ {
+	compatible = "mercury,mw305r-v9", "ralink,mt7628a-soc";
+	model = "Mercury MW305R V9.0(MT7628KN)";
+
+	aliases {
+		serial0 = &uart0;
+		spi0 = &spi0;
+	};
+
+	chosen {
+		stdout-path = &uart0;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_sys: sys {
+			label = "green:sys";
+			gpios = <&gpio1 3 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+
+		led_lan1: lan1 {
+			label = "green:lan1";
+			gpios = <&gpio0 31 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_lan2: lan2 {
+			label = "green:lan2";
+			gpios = <&gpio1 0 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_lan3: lan3 {
+			label = "green:lan3";
+			gpios = <&gpio1 1 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		led_internet: internet {
+			label = "green:internet";
+			gpios = <&gpio1 2 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		reset {
+			label = "reset";
+			gpios = <&gpio1 14 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+	};
+};
+
+&pinctrl {
+	state_default: pin_state {
+		pleds {
+			groups = "p0led", "p1led", "p2led", "p3led", "p4led";
+			function = "led";
+		};
+	};
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&spi0 {
+	status = "okay";
+	num-cs = <2>;
+
+	spi-flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "jedec,spi-nor";
+		spi-max-frequency = <25000000>;
+		reg = <0>;
+	};
+};
+
+&eth {
+	mediatek,wan-port = <0>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&ephy_router_mode>;
+};
