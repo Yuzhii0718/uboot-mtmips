@@ -150,4 +150,7 @@ void ar934x_ddr_init(const u16 cpu_mhz, const u16 ddr_mhz, const u16 ahb_mhz);
 
 void qca956x_pll_init(void);
 void qca956x_ddr_init(void);
+
+void qca955x_pll_init(void);
+void qca955x_ddr_init(void);
 #endif /* __ASM_MACH_ATH79_H */

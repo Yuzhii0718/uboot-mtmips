@@ -394,6 +394,36 @@ static int qca956x_init_mdio(void)
 	return 0;
 }
 
+static int eth_init_qca955x(void)
+{
+	void __iomem *rregs = map_physmem(AR71XX_RESET_BASE, AR71XX_RESET_SIZE,
+					  MAP_NOCACHE);
+	void __iomem *gregs = map_physmem(QCA955X_GMAC_BASE, QCA955X_GMAC_SIZE,
+					  MAP_NOCACHE);
+	void __iomem *pregs = map_physmem(AR71XX_PLL_BASE, AR71XX_PLL_SIZE,
+					  MAP_NOCACHE);
+	const u32 mask = QCA955X_RESET_GE0_MAC | QCA955X_RESET_GE0_MDIO |
+			 QCA955X_RESET_GE1_MAC | QCA955X_RESET_GE1_MDIO |
+			 QCA955X_RESET_SGMII_ANALOG | QCA955X_RESET_SGMII |
+			 QCA955X_RESET_EXTERNAL;
+
+	/* Reset SGMII/S17/MACs/MDIO */
+	setbits_be32(rregs + QCA955X_RESET_REG_RESET_MODULE, mask);
+	mdelay(1);
+	clrbits_be32(rregs + QCA955X_RESET_REG_RESET_MODULE, mask);
+	mdelay(1);
+
+	/* Configure GMAC: GE0 in SGMII mode */
+	writel(QCA955X_ETH_CFG_GE0_SGMII, gregs + QCA955X_GMAC_REG_ETH_CFG);
+
+	/* Configure XMII: TX invert, RX delay=2, TX delay=1, GigE */
+	writel((1 << 31) | (2 << 28) | (1 << 26) | (1 << 25),
+	       pregs + QCA955X_PLL_ETH_XMII_CONTROL_REG);
+	mdelay(1);
+
+	return 0;
+}
+
 static int eth_init_qca956x(void)
 {
 	void __iomem *pregs = map_physmem(AR71XX_PLL_BASE, AR71XX_PLL_SIZE,
@@ -434,6 +464,8 @@ int ath79_eth_reset(void)
 		return eth_init_ar934x();
 	if (soc_is_qca953x())
 		return eth_init_qca953x();
+	if (soc_is_qca955x())
+		return eth_init_qca955x();
 	if (soc_is_qca956x())
 		return eth_init_qca956x();
 

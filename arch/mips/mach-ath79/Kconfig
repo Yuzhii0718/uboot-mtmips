@@ -34,6 +34,15 @@ config SOC_QCA953X
 	help
 	  This supports QCA/Atheros qca953x family SOCs.
 
+config SOC_QCA955X
+	bool
+	select MIPS_TUNE_74KC
+	select SUPPORT_BIG_ENDIAN
+	select SUPPORTS_CPU_MIPS32_R1
+	select SUPPORTS_CPU_MIPS32_R2
+	help
+	  This supports QCA/Atheros qca955x family SOCs.
+
 config SOC_QCA956X
 	bool
 	select MIPS_TUNE_74KC
@@ -50,6 +59,10 @@ config TARGET_AP121
 	bool "AP121 Reference Board"
 	select SOC_AR933X
 
+config TARGET_AP135
+	bool "AP135 Reference Board"
+	select SOC_QCA955X
+
 config TARGET_AP143
 	bool "AP143 Reference Board"
 	select SOC_QCA953X
@@ -65,6 +78,7 @@ config BOARD_TPLINK_WDR4300
 endchoice
 
 source "board/qca/ap121/Kconfig"
+source "board/qca/ap135/Kconfig"
 source "board/qca/ap143/Kconfig"
 source "board/qca/ap152/Kconfig"
 source "board/tplink/wdr4300/Kconfig"
