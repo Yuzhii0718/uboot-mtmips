@@ -559,8 +559,6 @@ static int dhcpd_send_reply(const struct dhcpd_pkt *req, unsigned int req_len,
 
 	pkt = net_tx_packet;
 	eth_hdr_size = net_set_ether(pkt, net_bcast_ethaddr, PROT_IP);
-	net_set_udp_header(pkt + eth_hdr_size, bcast,
-			   DHCPD_CLIENT_PORT, DHCPD_SERVER_PORT, 0);
 
 	payload = pkt + eth_hdr_size + IP_UDP_HDR_SIZE;
 	bp = (struct dhcpd_pkt *)payload;
@@ -738,6 +736,8 @@ int mtk_dhcpd_start(void)
 	/*
 	 * Be robust against net_init()/net_clear_handlers() resetting handlers.
 	 * If we're already running but the UDP handler is no longer ours, re-hook.
+	 * Also re-ensure global net_ip/netmask/etc. because net_loop may have
+	 * called net_init() which can reset these values.
 	 */
 	if (dhcpd_running) {
 		rxhand_f *cur = net_get_udp_handler();
@@ -746,6 +746,23 @@ int mtk_dhcpd_start(void)
 			prev_udp_handler = cur;
 			net_set_udp_handler(dhcpd_udp_handler);
 		}
+
+		/* Re-ensure network globals after possible net_init() reset */
+		if (!net_ip.s_addr)
+			net_ip = dhcpd_get_server_ip();
+		if (!net_netmask.s_addr)
+			net_netmask = dhcpd_get_netmask();
+		if (!net_gateway.s_addr)
+			net_gateway = net_ip;
+		if (!net_dns_server.s_addr)
+			net_dns_server = net_ip;
+
+		dhcpd_log("DHCP server re-registered after net_init\n");
+		dhcpd_log("  Server IP  : %pI4\n", &net_ip);
+		dhcpd_log("  Netmask    : %pI4\n", &net_netmask);
+		dhcpd_log("  Gateway    : %pI4\n", &net_gateway);
+		dhcpd_log("  DNS        : %pI4\n", &net_dns_server);
+
 		return 0;
 	}
 
@@ -843,3 +860,16 @@ U_BOOT_CMD(dhcpd, 2, 0, do_dhcpd,
 	"  dhcpd_pool_start   - first host index of the DHCP pool (decimal or 0x..)\n"
 	"  dhcpd_pool_size    - number of addresses in the DHCP pool"
 );
+
+/*
+ * mtk_dhcpd_tcp_start_hook() - strong override of the weak hook in mtk_tcp.c
+ *
+ * Called from mtk_tcp_start() which runs INSIDE net_loop(), AFTER net_init()
+ * has already been called. This ensures the UDP handler is re-registered
+ * after net_init() → net_clear_handlers() may have cleared it.
+ */
+void mtk_dhcpd_tcp_start_hook(void)
+{
+	if (dhcpd_running)
+		mtk_dhcpd_start();
+}

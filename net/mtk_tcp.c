@@ -90,9 +90,14 @@ static LIST_HEAD(conn_head);
 static int mtk_tcp_stop;
 static u16 mtk_tcp_port_seq = 50000;
 
+__weak void mtk_dhcpd_tcp_start_hook(void)
+{
+}
+
 void mtk_tcp_start(void)
 {
 	mtk_tcp_stop = 0;
+	mtk_dhcpd_tcp_start_hook();
 }
 
 static struct mtk_tcp_listen *mtk_tcp_listen_find(__be16 port)
