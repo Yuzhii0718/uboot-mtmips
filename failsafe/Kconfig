@@ -12,3 +12,13 @@ config WEBUI_FAILSAFE
 	  Enable Web based failsafe UI.
 	  This also starts a minimal DHCP server so that a directly
 	  connected PC can obtain an IP automatically.
+
+config WEBUI_FAILSAFE_INITRAMFS
+	bool "Enable initramfs boot via Web failsafe"
+	depends on WEBUI_FAILSAFE
+	default n
+	help
+	  Allow uploading an initramfs kernel image via the web failsafe
+	  UI and booting it directly from RAM without writing to flash.
+	  This is useful for recovery, testing, or one-time boot of a
+	  custom kernel.

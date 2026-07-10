@@ -37,6 +37,14 @@ obj-y += style.o
 FILE_style.o := style.css
 FSPATH_style.o := style.css
 
+obj-$(CONFIG_WEBUI_FAILSAFE_INITRAMFS) += initramfs.o
+FILE_initramfs.o := initramfs.html
+FSPATH_initramfs.o := initramfs.html
+
+obj-$(CONFIG_WEBUI_FAILSAFE_INITRAMFS) += booting.o
+FILE_booting.o := booting.html
+FSPATH_booting.o := booting.html
+
 # customized build rules
 strip_path = $(subst /,_,$(subst -,_,$(subst .,_,$(1))))
 

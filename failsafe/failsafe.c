@@ -21,12 +21,36 @@
 #include <net/mtk_dhcpd.h>
 #endif
 
+#include <fdt_support.h>
+#include <image.h>
+
 static u32 upload_data_id;
 static const void *upload_data;
 static size_t upload_size;
 static int upgrade_success;
 static char update_type[8] = "fw";
 static u32 update_type_id;
+
+#ifdef CONFIG_WEBUI_FAILSAFE_INITRAMFS
+static bool initramfs_loaded;
+static const void *initramfs_data;
+static size_t initramfs_size;
+
+static bool initramfs_validate(const void *data, size_t size)
+{
+	/* Accept FIT image (FDT header) or legacy uImage */
+	if (!data || size < sizeof(struct legacy_img_hdr))
+		return false;
+
+	if (fdt_magic(data) == FDT_MAGIC)
+		return true;
+
+	if (image_check_magic(data))
+		return true;
+
+	return false;
+}
+#endif
 
 int __weak failsafe_validate_image(const void *data, size_t size)
 {
@@ -109,6 +133,33 @@ static void upload_handler(enum httpd_uri_handler_status status,
 		response->session_data = us;
 
 		fw = httpd_request_find_value(request, "firmware");
+
+#ifdef CONFIG_WEBUI_FAILSAFE_INITRAMFS
+		/* Check for initramfs upload */
+		if (!fw) {
+			fw = httpd_request_find_value(request, "initramfs");
+			if (fw) {
+				if (!initramfs_validate(fw->data, fw->size)) {
+					if (output_plain_file(response, "validate_fail.html"))
+						response->info.code = 500;
+					return;
+				}
+
+				initramfs_data = fw->data;
+				initramfs_size = fw->size;
+
+				strcpy(update_type, "initramfs");
+				update_type_id = upload_id;
+				upload_data_id = upload_id;
+				upload_data = fw->data;
+				upload_size = fw->size;
+				type_name = "Initramfs";
+
+				goto show_confirm;
+			}
+		}
+#endif
+
 		if (!fw) {
 			response->info.code = 302;
 			response->info.connection_close = 1;
@@ -139,6 +190,7 @@ static void upload_handler(enum httpd_uri_handler_status status,
 			type_name = "Firmware";
 		}
 
+show_confirm:
 		if (output_plain_file(response, "upload.html")) {
 			response->info.code = 500;
 			return;
@@ -264,6 +316,12 @@ static void result_handler(enum httpd_uri_handler_status status,
 		}
 
 		if (upload_data_id == upload_id) {
+#ifdef CONFIG_WEBUI_FAILSAFE_INITRAMFS
+			if (update_type_id == upload_id &&
+			    !strcmp(update_type, "initramfs"))
+				st->ret = 0; /* initramfs: no flash write needed */
+			else
+#endif
 			if (update_type_id == upload_id &&
 			    !strcmp(update_type, "bl"))
 				st->ret = failsafe_write_uboot(upload_data,
@@ -321,6 +379,24 @@ static void style_handler(enum httpd_uri_handler_status status,
 	}
 }
 
+#ifdef CONFIG_WEBUI_FAILSAFE_INITRAMFS
+static void initramfs_page_handler(enum httpd_uri_handler_status status,
+			      struct httpd_request *request,
+			      struct httpd_response *response)
+{
+	if (status == HTTP_CB_NEW)
+		output_plain_file(response, "initramfs.html");
+}
+
+static void booting_page_handler(enum httpd_uri_handler_status status,
+			      struct httpd_request *request,
+			      struct httpd_response *response)
+{
+	if (status == HTTP_CB_NEW)
+		output_plain_file(response, "booting.html");
+}
+#endif
+
 static void not_found_handler(enum httpd_uri_handler_status status,
 			      struct httpd_request *request,
 			      struct httpd_response *response)
@@ -351,6 +427,13 @@ int start_web_failsafe(void)
 	httpd_register_uri_handler(inst, "/flashing", &flashing_handler, NULL);
 	httpd_register_uri_handler(inst, "/result", &result_handler, NULL);
 	httpd_register_uri_handler(inst, "/style.css", &style_handler, NULL);
+#ifdef CONFIG_WEBUI_FAILSAFE_INITRAMFS
+	httpd_register_uri_handler(inst, "/initramfs_upload", &upload_handler, NULL);
+	httpd_register_uri_handler(inst, "/initramfs.html", &initramfs_page_handler,
+				    NULL);
+	httpd_register_uri_handler(inst, "/booting.html", &booting_page_handler,
+				    NULL);
+#endif
 	httpd_register_uri_handler(inst, "", &not_found_handler, NULL);
 
 #ifdef CONFIG_MTK_DHCPD
@@ -381,8 +464,21 @@ static int do_httpd(struct cmd_tbl *cmdtp, int flag, int argc,
 
 	ret = start_web_failsafe();
 
-	if (upgrade_success)
+	if (upgrade_success) {
+#ifdef CONFIG_WEBUI_FAILSAFE_INITRAMFS
+		if (initramfs_loaded && initramfs_data) {
+			char cmd[64];
+
+			printf("\nBooting initramfs from 0x%08lx (%zd bytes)...\n",
+			       (ulong)initramfs_data, initramfs_size);
+			snprintf(cmd, sizeof(cmd), "bootm %lx",
+				 (ulong)initramfs_data);
+			run_command(cmd, 0);
+			/* bootm failed, fall through to reset */
+		}
+#endif
 		do_reset(NULL, 0, 0, NULL);
+	}
 
 	return ret;
 }
