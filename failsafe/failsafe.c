@@ -21,6 +21,8 @@ static u32 upload_data_id;
 static const void *upload_data;
 static size_t upload_size;
 static int upgrade_success;
+static char update_type[8] = "fw";
+static u32 update_type_id;
 
 int __weak failsafe_validate_image(const void *data, size_t size)
 {
@@ -28,6 +30,16 @@ int __weak failsafe_validate_image(const void *data, size_t size)
 }
 
 int __weak failsafe_write_image(const void *data, size_t size)
+{
+	return -ENOSYS;
+}
+
+int __weak failsafe_validate_uboot(const void *data, size_t size)
+{
+	return -ENOSYS;
+}
+
+int __weak failsafe_write_uboot(const void *data, size_t size)
 {
 	return -ENOSYS;
 }
@@ -74,10 +86,11 @@ static void upload_handler(enum httpd_uri_handler_status status,
 			  struct httpd_request *request,
 			  struct httpd_response *response)
 {
-	char *buff, *md5_ptr, *size_ptr, size_str[16];
-	struct httpd_form_value *fw;
+	char *buff, *md5_ptr, *size_ptr, *type_ptr, size_str[16];
+	struct httpd_form_value *fw, *ut;
 	struct upload_status *us;
 	u8 md5_sum[16];
+	const char *type_name;
 	int i;
 
 	static char hexchars[] = "0123456789abcdef";
@@ -99,11 +112,27 @@ static void upload_handler(enum httpd_uri_handler_status status,
 			return;
 		}
 
-		if (failsafe_validate_image(fw->data, fw->size)) {
-			if (output_plain_file(response, "validate_fail.html"))
-				response->info.code = 500;
+		/* Determine update type */
+		ut = httpd_request_find_value(request, "update_type");
+		update_type_id = upload_id;
+		if (ut && ut->data && !strcmp(ut->data, "bl")) {
+			strcpy(update_type, "bl");
+			if (failsafe_validate_uboot(fw->data, fw->size)) {
+				if (output_plain_file(response, "validate_fail.html"))
+					response->info.code = 500;
 
-			return;
+				return;
+			}
+			type_name = "U-Boot / Bootloader";
+		} else {
+			strcpy(update_type, "fw");
+			if (failsafe_validate_image(fw->data, fw->size)) {
+				if (output_plain_file(response, "validate_fail.html"))
+					response->info.code = 500;
+
+				return;
+			}
+			type_name = "Firmware";
 		}
 
 		if (output_plain_file(response, "upload.html")) {
@@ -118,6 +147,7 @@ static void upload_handler(enum httpd_uri_handler_status status,
 
 			md5_ptr = strstr(buff, "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 			size_ptr = strstr(buff, "YYYYYYYYYY");
+			type_ptr = strstr(buff, "ZZZZZZZZZZZZZZZZ");
 
 			if (md5_ptr) {
 				md5_wd((u8 *)fw->data, fw->size, md5_sum, MD5_DEF_CHUNK_SZ);
@@ -138,6 +168,14 @@ static void upload_handler(enum httpd_uri_handler_status status,
 					     fw->size);
 				memset(size_str + n, ' ', sizeof(size_str) - n);
 				memcpy(size_ptr, size_str, 10);
+			}
+
+			if (type_ptr) {
+				size_t tlen = strlen(type_name);
+
+				memcpy(type_ptr, type_name, tlen);
+				if (tlen < 16)
+					memset(type_ptr + tlen, ' ', 16 - tlen);
 			}
 
 			response->data = buff;
@@ -221,12 +259,19 @@ static void result_handler(enum httpd_uri_handler_status status,
 			return;
 		}
 
-		if (upload_data_id == upload_id)
-			st->ret = failsafe_write_image(upload_data,
-						       upload_size);
+		if (upload_data_id == upload_id) {
+			if (update_type_id == upload_id &&
+			    !strcmp(update_type, "bl"))
+				st->ret = failsafe_write_uboot(upload_data,
+							       upload_size);
+			else
+				st->ret = failsafe_write_image(upload_data,
+							       upload_size);
+		}
 
 		/* invalidate upload identifier */
 		upload_data_id = rand();
+		update_type_id = rand();
 
 		if (!st->ret)
 			file = fs_find_file("success.html");

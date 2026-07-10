@@ -17,6 +17,7 @@
 DECLARE_GLOBAL_DATA_PTR;
 
 #define UPGRADE_PART		"fw"
+#define UPGRADE_UBOOT_PART	"bl"
 
 static const struct data_part_entry *find_part(const struct data_part_entry *parts,
 					       u32 num_parts, const char *abbr)
@@ -78,6 +79,65 @@ int failsafe_write_image(const void *data, size_t size)
 	}
 
 	dpe = find_part(upgrade_parts, num_parts, UPGRADE_PART);
+	if (!dpe)
+		return -ENODEV;
+
+	printf("\n");
+	cprintln(PROMPT, "*** Upgrading %s ***", dpe->name);
+	cprintln(PROMPT, "*** Data: %zd (0x%zx) bytes at 0x%08lx ***",
+		 size, size, (ulong)data);
+	printf("\n");
+
+	ret = dpe->write(dpe->priv, dpe, data, size);
+	if (ret)
+		return ret;
+
+	printf("\n");
+	cprintln(PROMPT, "*** %s upgrade completed! ***", dpe->name);
+	printf("\n");
+
+	if (dpe->do_post_action)
+		dpe->do_post_action(dpe->priv, dpe, data, size);
+
+	return 0;
+}
+
+int failsafe_validate_uboot(const void *data, size_t size)
+{
+	const struct data_part_entry *upgrade_parts, *dpe;
+	u32 num_parts;
+
+	board_upgrade_data_parts(&upgrade_parts, &num_parts);
+
+	if (!upgrade_parts || !num_parts) {
+		printf("mtkupgrade is not configured!\n");
+		return -ENOSYS;
+	}
+
+	dpe = find_part(upgrade_parts, num_parts, UPGRADE_UBOOT_PART);
+	if (!dpe)
+		return -ENODEV;
+
+	if (dpe->validate)
+		return dpe->validate(dpe->priv, dpe, data, size);
+
+	return 0;
+}
+
+int failsafe_write_uboot(const void *data, size_t size)
+{
+	const struct data_part_entry *upgrade_parts, *dpe;
+	u32 num_parts;
+	int ret;
+
+	board_upgrade_data_parts(&upgrade_parts, &num_parts);
+
+	if (!upgrade_parts || !num_parts) {
+		printf("mtkupgrade is not configured!\n");
+		return -ENOSYS;
+	}
+
+	dpe = find_part(upgrade_parts, num_parts, UPGRADE_UBOOT_PART);
 	if (!dpe)
 		return -ENODEV;
 
