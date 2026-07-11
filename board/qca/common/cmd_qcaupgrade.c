@@ -18,7 +18,12 @@
 #include <vsprintf.h>
 
 /* QCA partition names — must match CONFIG_MTDPARTS_DEFAULT */
+#ifdef CONFIG_QCA_BOOTMENU_LEGACY
+#define QCA_FIRMWARE_PART	"rootfs"
+#define QCA_UIMAGE_PART		"uImage"
+#else
 #define QCA_FIRMWARE_PART	"firmware"
+#endif
 #define QCA_UBOOT_PART		"u-boot"
 
 static const char *default_fw_file = "firmware.bin";
@@ -28,11 +33,45 @@ static const char *default_bl_file = "uboot.bin";
 /* MTD erase + write helper (NOR)                                      */
 /* ------------------------------------------------------------------ */
 
+static int nor_erase_write_part(struct mtd_info *mtd,
+				const void *data, size_t size)
+{
+	struct erase_info ei;
+	int ret;
+
+	if (size > mtd->size) {
+		printf("Error: data (%zu bytes) exceeds partition size"
+		       " (%llu bytes)\n", size, mtd->size);
+		return -ENOSPC;
+	}
+
+	printf("Erasing '%s' (0x%llx bytes) ... ", mtd->name, mtd->size);
+	memset(&ei, 0, sizeof(ei));
+	ei.mtd = mtd;
+	ei.addr = 0;
+	ei.len = mtd->size;
+	ret = mtd_erase(mtd, &ei);
+	if (ret) {
+		printf("FAILED (err=%d)\n", ret);
+		return ret;
+	}
+	printf("OK\n");
+
+	printf("Writing %zu bytes to '%s' ... ", size, mtd->name);
+	ret = mtd_write(mtd, 0, size, NULL, (const u_char *)data);
+	if (ret) {
+		printf("FAILED (err=%d)\n", ret);
+		return ret;
+	}
+	printf("OK\n");
+
+	return 0;
+}
+
 static int nor_erase_write(const char *part_name,
 			   const void *data, size_t size)
 {
 	struct mtd_info *mtd;
-	struct erase_info ei;
 	int ret;
 
 	mtd = get_mtd_device_nm(part_name);
@@ -41,38 +80,86 @@ static int nor_erase_write(const char *part_name,
 		return -ENODEV;
 	}
 
-	if (size > mtd->size) {
-		printf("Error: data (%zu bytes) exceeds partition size"
-		       " (%llu bytes)\n", size, mtd->size);
-		put_mtd_device(mtd);
+	ret = nor_erase_write_part(mtd, data, size);
+	put_mtd_device(mtd);
+
+	return ret;
+}
+
+#ifdef CONFIG_QCA_BOOTMENU_LEGACY
+/*
+ * Legacy write: split the combined rootfs+uImage across two partitions.
+ * The image layout is [rootfs data][uImage data], matching the flash
+ * layout: rootfs partition followed by uImage partition.
+ */
+static int legacy_erase_write_firmware(const void *data, size_t size)
+{
+	struct mtd_info *mtd_rootfs, *mtd_uimage;
+	int ret;
+
+	mtd_rootfs = get_mtd_device_nm(QCA_FIRMWARE_PART);
+	if (IS_ERR_OR_NULL(mtd_rootfs)) {
+		printf("Error: MTD partition '%s' not found\n",
+		       QCA_FIRMWARE_PART);
+		return -ENODEV;
+	}
+
+	mtd_uimage = get_mtd_device_nm(QCA_UIMAGE_PART);
+	if (IS_ERR_OR_NULL(mtd_uimage)) {
+		printf("Error: MTD partition '%s' not found\n",
+		       QCA_UIMAGE_PART);
+		put_mtd_device(mtd_rootfs);
+		return -ENODEV;
+	}
+
+	if (size > mtd_rootfs->size + mtd_uimage->size) {
+		printf("Error: firmware too large (%zu > %llu + %llu)\n",
+		       size, mtd_rootfs->size, mtd_uimage->size);
+		put_mtd_device(mtd_rootfs);
+		put_mtd_device(mtd_uimage);
 		return -ENOSPC;
 	}
 
-	printf("Erasing '%s' (0x%llx bytes) ... ", part_name, mtd->size);
-	memset(&ei, 0, sizeof(ei));
-	ei.mtd = mtd;
-	ei.addr = 0;
-	ei.len = mtd->size;
-	ret = mtd_erase(mtd, &ei);
-	if (ret) {
-		printf("FAILED (err=%d)\n", ret);
-		put_mtd_device(mtd);
-		return ret;
-	}
-	printf("OK\n");
+	printf("Partition '%s': %llu bytes, '%s': %llu bytes\n",
+	       QCA_FIRMWARE_PART, mtd_rootfs->size,
+	       QCA_UIMAGE_PART, mtd_uimage->size);
 
-	printf("Writing %zu bytes to '%s' ... ", size, part_name);
-	ret = mtd_write(mtd, 0, size, NULL, (const u_char *)data);
-	if (ret) {
-		printf("FAILED (err=%d)\n", ret);
-		put_mtd_device(mtd);
-		return ret;
-	}
-	printf("OK\n");
+	/* Write rootfs portion */
+	{
+		size_t wsize = size < mtd_rootfs->size ?
+			       size : mtd_rootfs->size;
 
-	put_mtd_device(mtd);
-	return 0;
+		printf("\n--- Writing rootfs portion (%zu bytes) ---\n",
+		       wsize);
+		ret = nor_erase_write_part(mtd_rootfs, data, wsize);
+		if (ret)
+			goto out;
+	}
+
+	/* Write uImage portion */
+	if (size > mtd_rootfs->size) {
+		size_t wsize = size - mtd_rootfs->size;
+
+		if (wsize > mtd_uimage->size)
+			wsize = mtd_uimage->size;
+
+		printf("\n--- Writing uImage portion (%zu bytes) ---\n",
+		       wsize);
+		ret = nor_erase_write_part(mtd_uimage,
+					   data + mtd_rootfs->size, wsize);
+		if (ret)
+			goto out;
+	}
+
+	ret = 0;
+	printf("\n=== Legacy firmware upgrade complete ===\n");
+
+out:
+	put_mtd_device(mtd_rootfs);
+	put_mtd_device(mtd_uimage);
+	return ret;
 }
+#endif /* CONFIG_QCA_BOOTMENU_LEGACY */
 
 /* ------------------------------------------------------------------ */
 /* Validate image before writing                                       */
@@ -160,7 +247,11 @@ static int do_qcaupgrade(struct cmd_tbl *cmdtp, int flag, int argc,
 	/* Step 2: Validate */
 	if (!strcmp(target, "fw")) {
 		ret = validate_image(load_addr, size);
+#ifdef CONFIG_QCA_BOOTMENU_LEGACY
+		part = QCA_FIRMWARE_PART; /* rootfs */
+#else
 		part = QCA_FIRMWARE_PART;
+#endif
 	} else if (!strcmp(target, "bl")) {
 		ret = validate_uboot(load_addr, size);
 		part = QCA_UBOOT_PART;
@@ -181,13 +272,19 @@ static int do_qcaupgrade(struct cmd_tbl *cmdtp, int flag, int argc,
 	mtd_probe_devices();
 
 	/* Step 4: Write to flash */
-	printf("\n=== Writing %s (%zu bytes) to '%s' ===\n",
-	       file, size, part);
+	printf("\n=== Writing %s (%zu bytes) ===\n", file, size);
 
 	if (!strcmp(target, "bl"))
 		printf("*** WARNING: Do not power off during write! ***\n");
 
+#ifdef CONFIG_QCA_BOOTMENU_LEGACY
+	if (!strcmp(target, "fw"))
+		ret = legacy_erase_write_firmware(load_addr, size);
+	else
+		ret = nor_erase_write(part, load_addr, size);
+#else
 	ret = nor_erase_write(part, load_addr, size);
+#endif
 	if (ret) {
 		printf("Error: write failed (err=%d)\n", ret);
 		return CMD_RET_FAILURE;

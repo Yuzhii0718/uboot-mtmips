@@ -31,6 +31,24 @@ config QCA_BOOTMENU_DELAY
 	  The delay seconds for the bootmenu to show before running
 	  the default command.
 
+config QCA_BOOTMENU_LEGACY
+	bool "Use legacy rootfs+uImage partition layout"
+	depends on QCA_BOOTMENU
+	default n
+	help
+	  Use the legacy rootfs+uImage MTD partition scheme instead
+	  of the unified firmware partition.
+
+	  Enable this for AP143 and similar devices that have separate
+	  rootfs and uImage MTD partitions rather than a single
+	  firmware partition.
+
+	  Legacy layout example:
+	    u-boot | u-boot-env | rootfs | uImage | ART
+
+	  New layout example:
+	    u-boot | u-boot-env | firmware | ART
+
 endif # QCA_BOOTMENU
 
 config QCA_FAILSAFE_NAND
