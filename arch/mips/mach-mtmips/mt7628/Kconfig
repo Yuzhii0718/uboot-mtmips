@@ -18,14 +18,6 @@ config BOARD_MT7628_RFB
 	  SPI-NOR flash, 1 built-in switch with 5 ports, 1 UART, 1 USB host,
 	  1 SDXC, 1 PCIe socket and JTAG pins.
 
-config BOARD_VOCORE2
-	bool "VoCore2"
-	select SPL_SERIAL
-	select SPL_UART2_SPIS_PINMUX
-	help
-	  VoCore VoCore2 board has a MT7628 SoC with 128 MiB of RAM
-	  and 16 MiB of flash (SPI).
-
 endchoice
 
 config SPL_UART2_SPIS_PINMUX
@@ -43,6 +35,5 @@ config SYS_CONFIG_NAME
 	default "mt7628" if SOC_MT7628
 
 source "board/gardena/smart-gateway-mt7688/Kconfig"
-source "board/vocore/vocore2/Kconfig"
 
 endif

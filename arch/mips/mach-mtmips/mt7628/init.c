@@ -22,7 +22,12 @@ void board_debug_uart_init(void)
 {
 	void __iomem *gpio_mode;
 
-	if (IS_ENABLED(CONFIG_CONS_INDEX) && CONFIG_CONS_INDEX == 3) {
+	/*
+	 * For standard UART2 (GPIO 20/21), configure pinmux.
+	 * Skip if SPL_UART2_SPIS_PINMUX is used (GPIO 16/17, set up by SPL).
+	 */
+	if (IS_ENABLED(CONFIG_CONS_INDEX) && CONFIG_CONS_INDEX == 3 &&
+	    !IS_ENABLED(CONFIG_SPL_UART2_SPIS_PINMUX)) {
 		/* Select UART2 mode instead of GPIO mode (default) */
 		gpio_mode = ioremap_nocache(MT76XX_GPIO1_MODE, 0x100);
 		clrbits_le32(gpio_mode, GENMASK(27, 26));
