@@ -473,18 +473,21 @@ restart:
 	if (!test_eth_enabled())
 		return 0;
 
-	switch (net_check_prereq(protocol)) {
-	case 1:
-		/* network not configured */
-		eth_halt();
-		net_set_state(prev_net_state);
-		return -ENODEV;
+	{
+		int pr = net_check_prereq(protocol);
 
-	case 2:
-		/* network device not configured */
-		break;
+		switch (pr) {
+		case 1:
+			/* network not configured */
+			eth_halt();
+			net_set_state(prev_net_state);
+			return -ENODEV;
 
-	case 0:
+		case 2:
+			/* network device not configured */
+			break;
+
+		case 0:
 		net_dev_exists = 1;
 		net_boot_file_size = 0;
 		switch (protocol) {
@@ -605,6 +608,7 @@ restart:
 
 		break;
 	}
+	} /* end scope block for pr */
 
 #ifdef CONFIG_USB_KEYBOARD
 	net_busy_flag = 1;
@@ -1374,12 +1378,15 @@ void net_process_received_packet(uchar *in_packet, int len)
 			debug_cond(DEBUG_DEV_PKT,
 				   "TCP PH (to=%pI4, from=%pI4, len=%d)\n",
 				   &dst_ip, &src_ip, len);
-
 #if defined(CONFIG_MTK_TCP)
+			{
 			bool rc = mtk_receive_tcp((struct ip_hdr *)ip, len, et);
 			if (!rc)
 #endif
 			rxhand_tcp_f((union tcp_build_pkt *)ip, len);
+#if defined(CONFIG_MTK_TCP)
+			}
+#endif
 			return;
 #endif
 		} else if (ip->ip_p != IPPROTO_UDP) {	/* Only UDP packets */
