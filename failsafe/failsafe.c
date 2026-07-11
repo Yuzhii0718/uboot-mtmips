@@ -190,7 +190,9 @@ static void upload_handler(enum httpd_uri_handler_status status,
 			type_name = "Firmware";
 		}
 
+#ifdef CONFIG_WEBUI_FAILSAFE_INITRAMFS
 show_confirm:
+#endif
 		if (output_plain_file(response, "upload.html")) {
 			response->info.code = 500;
 			return;
