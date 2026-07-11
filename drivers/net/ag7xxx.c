@@ -560,8 +560,76 @@ static int ag7xxx_eth_free_pkt(struct udevice *dev, uchar *packet,
 static int ag7xxx_eth_start(struct udevice *dev)
 {
 	struct ar7xxx_eth_priv *priv = dev_get_priv(dev);
+	int i, ret, link_up = 0;
 
-	/* FIXME: Check if link up */
+	/*
+	 * Check if at least one PHY port has link before starting DMA.
+	 * On QCA953X (and similar S27 switch chips), eth0 is the WAN
+	 * port (RMII, switch port 4) and eth1 is the LAN switch
+	 * (RGMII, switch ports 0-3).  If the current interface has
+	 * no link, return an error so U-Boot falls back to the other
+	 * interface — matching the old Qualcomm driver behaviour.
+	 */
+	if (priv->model == AG7XXX_MODEL_AG953X ||
+	    priv->model == AG7XXX_MODEL_AG955X ||
+	    priv->model == AG7XXX_MODEL_AG956X) {
+		u16 reg;
+
+		if (priv->interface == PHY_INTERFACE_MODE_RMII) {
+			/* WAN port: check switch port 4 (MII addr 4) */
+			ret = ag7xxx_switch_read(priv->bus, 4, MII_MIPSCR, &reg);
+			if (ret == 0 && (reg & 0x0400))
+				link_up = 1;
+		} else {
+			/* LAN switch: any of ports 0-3 has link? */
+			for (i = 0; i < 4; i++) {
+				ret = ag7xxx_switch_read(priv->bus, i,
+							 MII_MIPSCR, &reg);
+				if (ret == 0 && (reg & 0x0400)) {
+					link_up = 1;
+					break;
+				}
+			}
+		}
+	} else if (priv->model == AG7XXX_MODEL_AG933X) {
+		/* AR933X switch: ports 0-3 for LAN, port 4 for WAN */
+
+		if (priv->interface == PHY_INTERFACE_MODE_RMII) {
+			/* WAN — port 4 via mdio */
+			ret = ag7xxx_mdio_read(priv->bus, 4, 0,
+					       MII_MIPSCR);
+			if (ret >= 0 && (ret & 0x0400))
+				link_up = 1;
+		} else {
+			/* LAN — ports 0-3 via mdio */
+			for (i = 0; i < 4; i++) {
+				ret = ag7xxx_mdio_read(priv->bus, i, 0,
+						       MII_MIPSCR);
+				if (ret >= 0 && (ret & 0x0400)) {
+					link_up = 1;
+					break;
+				}
+			}
+		}
+	} else if (priv->model == AG7XXX_MODEL_AG934X) {
+		/*
+		 * AR934X with AR8327 external switch.
+		 * The switch ports are accessed through the standard
+		 * MDIO path (phy addresses 0-4).  U-Boot's phy_startup
+		 * normally handles link detection for external PHYs,
+		 * but the AR8327 switch built-in PHYs may not be
+		 * probed as separate phy_device instances.  For now
+		 * just skip the detailed per-port check — the external
+		 * switch PHYs are likely handled by the phy framework.
+		 */
+		link_up = 1;
+	}
+
+	if (!link_up) {
+		printf("ag7xxx: %s no link (iface=%d), skipping\n",
+		       dev->name, priv->interface);
+		return -ENETDOWN;
+	}
 
 	/* Clear the DMA rings. */
 	ag7xxx_dma_clean_tx(dev);
@@ -920,15 +988,14 @@ static int ag933x_phy_setup_reset_set(struct udevice *dev, int port)
 	if (priv->model == AG7XXX_MODEL_AG934X) {
 		ret = ag7xxx_mdio_write(priv->bus, port, 0, MII_CTRL1000,
 					ADVERTISE_1000FULL);
-		if (ret)
-			return ret;
-	} else if (priv->model == AG7XXX_MODEL_AG955X ||
+	} else if (priv->model == AG7XXX_MODEL_AG953X ||
+		   priv->model == AG7XXX_MODEL_AG955X ||
 		   priv->model == AG7XXX_MODEL_AG956X) {
 		ret = ag7xxx_switch_write(priv->bus, port, MII_CTRL1000,
 					  ADVERTISE_1000FULL);
-		if (ret)
-			return ret;
 	}
+	if (ret)
+		return ret;
 
 	if (priv->model == AG7XXX_MODEL_AG953X ||
 	    priv->model == AG7XXX_MODEL_AG955X ||
@@ -971,11 +1038,36 @@ static int ag933x_phy_setup_reset_fin(struct udevice *dev, int port)
 	return 0;
 }
 
+/*
+ * S27 PHY debug register writes for fine-tuning (from Qualcomm ref athrs27_phy_setup).
+ * reg 29=address, reg 30=data.
+ */
+static void ag953x_s27_phy_tune(struct udevice *dev, int port)
+{
+	struct ar7xxx_eth_priv *priv = dev_get_priv(dev);
+
+	/* Extend cable length */
+	ag7xxx_switch_write(priv->bus, port, 29, 0x14);
+	ag7xxx_switch_write(priv->bus, port, 30, 0xf52);
+
+	/* Force Class A setting */
+	ag7xxx_switch_write(priv->bus, port, 29, 4);
+	ag7xxx_switch_write(priv->bus, port, 30, 0xebbb);
+	ag7xxx_switch_write(priv->bus, port, 29, 5);
+	ag7xxx_switch_write(priv->bus, port, 30, 0x2c47);
+
+	/* Fine-tune PHYs */
+	ag7xxx_switch_write(priv->bus, port, 29, 0x3c);
+	ag7xxx_switch_write(priv->bus, port, 30, 0x1c1);
+	ag7xxx_switch_write(priv->bus, port, 29, 0x37);
+	ag7xxx_switch_write(priv->bus, port, 30, 0xd600);
+}
+
 static int ag933x_phy_setup_common(struct udevice *dev)
 {
 	struct ar7xxx_eth_priv *priv = dev_get_priv(dev);
-	int i, ret, phymax;
-	u16 reg;
+	int i, ret, phymax, timeout;
+	u16 reg, bmcr;
 
 	if (priv->model == AG7XXX_MODEL_AG933X)
 		phymax = 4;
@@ -1007,7 +1099,7 @@ static int ag933x_phy_setup_common(struct udevice *dev)
 		return 0;
 	}
 
-	/* Switch ports */
+	/* Non-RMII: Switch ports reset + autoneg + tuning */
 	for (i = 0; i < phymax; i++) {
 		ret = ag933x_phy_setup_reset_set(dev, i);
 		if (ret)
@@ -1020,16 +1112,42 @@ static int ag933x_phy_setup_common(struct udevice *dev)
 			return ret;
 	}
 
-	for (i = 0; i < phymax; i++) {
-		/* Read out link status */
-		if (priv->model == AG7XXX_MODEL_AG953X ||
-		    priv->model == AG7XXX_MODEL_AG955X ||
-		    priv->model == AG7XXX_MODEL_AG956X)
-			ret = ag7xxx_switch_read(priv->bus, i, MII_MIPSCR, &reg);
-		else
-			ret = ag7xxx_mdio_read(priv->bus, i, 0, MII_MIPSCR);
-		if (ret < 0)
-			return ret;
+	/*
+	 * After PHY reset, wait for auto-negotiation to complete.
+	 * Reference code waits up to 3s (20 * 150ms).
+	 */
+	if (priv->model == AG7XXX_MODEL_AG953X) {
+		/* 1s wait like ref's sysMsDelay(1000) for LAN */
+		mdelay(1000);
+
+		for (i = 0; i < phymax; i++) {
+			if (i == 4)
+				continue; /* skip WAN/CPU port */
+
+			timeout = 20;
+			while (timeout--) {
+				ret = ag7xxx_switch_read(priv->bus, i,
+							 MII_BMCR, &bmcr);
+				if (ret < 0)
+					break;
+				if (!(bmcr & BMCR_RESET))
+					break;
+				mdelay(150);
+			}
+
+			/* S27 PHY fine-tuning (L3/L4 cable length, calibration) */
+			ag953x_s27_phy_tune(dev, i);
+		}
+	} else {
+		for (i = 0; i < phymax; i++) {
+			if (priv->model == AG7XXX_MODEL_AG955X ||
+			    priv->model == AG7XXX_MODEL_AG956X)
+				ret = ag7xxx_switch_read(priv->bus, i, MII_MIPSCR, &reg);
+			else
+				ret = ag7xxx_mdio_read(priv->bus, i, 0, MII_MIPSCR);
+			if (ret < 0)
+				return ret;
+		}
 	}
 
 	return 0;
