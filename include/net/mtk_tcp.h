@@ -10,6 +10,10 @@
 #ifndef __NET_MTK_MTK_TCP_H__
 #define __NET_MTK_MTK_TCP_H__
 
+#ifdef __mips__
+#undef sp /* MIPS register name collision with struct field 'sp' */
+#endif
+
 enum mtk_tcp_cb_status {
 	MTK_TCP_CB_NONE,
 	MTK_TCP_CB_NEW_CONN,

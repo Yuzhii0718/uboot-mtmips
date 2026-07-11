@@ -18,8 +18,8 @@
  * On MIPS, arch/mips/include/asm/regdef.h #defines sp as $29.
  * Undefine it before mtk_tcp.h is parsed so struct field 'sp' stays intact.
  */
-#ifdef CONFIG_MTK_NET_MIPS_SP_COMPAT
-#undef sp
+#ifdef __mips__
+#undef sp /* MIPS $29 register macro collides with struct field */
 #endif
 #include "mtk_tcp.h"
 #include "arp.h"
