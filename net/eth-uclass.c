@@ -296,8 +296,10 @@ int eth_start_udev(struct udevice *dev)
 		return -EINVAL;
 
 	ret = eth_get_ops(dev)->start(dev);
-	if (ret < 0)
+	if (ret < 0) {
+		eth_errno = ret;
 		return ret;
+	}
 
 	priv->state = ETH_STATE_ACTIVE;
 	priv->running = true;
