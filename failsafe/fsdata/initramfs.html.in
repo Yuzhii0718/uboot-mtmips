@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+	<title>Load initramfs - {VENDOR} System Recovery Mode</title>
+	<link rel="stylesheet" type="text/css" href="/style.css">
+</head>
+<body>
+	<div id="banner">
+		{VENDOR} U-Boot System Recovery Mode
+	</div>
+	<div id="main">
+		<p>Upload initramfs image to boot directly from RAM:</p>
+		<form action="/initramfs_upload" method="post" enctype="multipart/form-data">
+			<p><input type="file" name="initramfs" /></p>
+			<p><input type="submit" id="submit" value="Upload" /></p>
+		</form>
+		<p style="margin-top: 20px;"><a href="/">&#8592; Back to firmware update</a></p>
+	</div>
+</body>
+</html>

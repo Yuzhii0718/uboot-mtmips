@@ -1,5 +1,15 @@
 # SPDX-License-Identifier: GPL-2.0
 
+# Vendor substitution: {VENDOR} in .html.in files gets replaced with
+# the value of CONFIG_WEBUI_FAILSAFE_VENDOR at build time.
+VENDOR_VALUE = $(subst $\",,$(CONFIG_WEBUI_FAILSAFE_VENDOR))
+
+quiet_cmd_gen_html = SED     $@
+cmd_gen_html = sed 's/{VENDOR}/$(VENDOR_VALUE)/g' < $< > $@
+
+$(obj)/%.html: $(src)/%.html.in FORCE
+	$(call cmd,gen_html)
+
 # example:
 # obj-y += XXXX.o <- object file to generate
 # FILE_XXXX.o := YYYY.html <- actual html file to be embedded
@@ -51,7 +61,7 @@ strip_path = $(subst /,_,$(subst -,_,$(subst .,_,$(1))))
 quiet_cmd_as_o_html = AS      $@
 cmd_as_o_html = $(CC) $(a_flags) -c -o $@ \
 		-DDATA_SECT_NAME="\".rodata.fsdata.$(call strip_path,$(FSPATH_$(@F)))\"" \
-		-DDATA_OBJ_FILE="\"$(srctree)/$(obj)/$(FILE_$(@F))\"" \
+		-DDATA_OBJ_FILE="\"$(obj)/$(FILE_$(@F))\"" \
 		-DDATA_OBJ_NAME="fsdata_$(call strip_path,$(FSPATH_$(@F)))" \
 		-DDATA_SIZE_NAME="fsdata_size_$(call strip_path,$(FSPATH_$(@F)))" \
 		-DDATA_SECT_FSPATH_NAME="\".rodata.fsdata.path.$(call strip_path,$(FSPATH_$(@F)))\"" \
@@ -61,7 +71,7 @@ cmd_as_o_html = $(CC) $(a_flags) -c -o $@ \
 		-DUBOOT_LIST_NAME="fsdata_ulist_$(call strip_path,$(FSPATH_$(@F)))" \
 		$(srctree)/$(src)/embed.S
 
-$(obj)/%.o: $(src)/%.html FORCE
+$(obj)/%.o: $(obj)/%.html FORCE
 	$(call cmd,force_checksrc)
 	$(call if_changed_dep,as_o_html)
 

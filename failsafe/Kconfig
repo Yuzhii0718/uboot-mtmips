@@ -22,3 +22,12 @@ config WEBUI_FAILSAFE_INITRAMFS
 	  UI and booting it directly from RAM without writing to flash.
 	  This is useful for recovery, testing, or one-time boot of a
 	  custom kernel.
+
+config WEBUI_FAILSAFE_VENDOR
+	string "Vendor name for failsafe web UI banner"
+	depends on WEBUI_FAILSAFE
+	default "MediaTek"
+	help
+	  Set the vendor name displayed in the failsafe web UI title
+	  and banner.  For QCA/Atheros platforms, set this to
+	  "Qualcomm Atheros".

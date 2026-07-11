@@ -45,3 +45,10 @@ config QCA_FAILSAFE_NAND
 
 	  This option is kept for future NAND board support.
 	  Current QCA boards (AP143/AP135/AP152) use NOR flash only.
+
+if ARCH_ATH79 && WEBUI_FAILSAFE
+
+config WEBUI_FAILSAFE_VENDOR
+	default "Qualcomm Atheros"
+
+endif
