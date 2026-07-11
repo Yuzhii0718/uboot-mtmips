@@ -13,6 +13,7 @@
 #include <malloc.h>
 #include <net.h>
 #include <linux/list.h>
+#include "arp.h"
 #include <asm/global_data.h>
 /*
  * On MIPS, arch/mips/include/asm/regdef.h #defines sp as $29.
@@ -1071,6 +1072,27 @@ void mtk_tcp_periodic_check(void)
 
 	if (mtk_tcp_stop && !num)
 		net_state = NETLOOP_SUCCESS;
+
+	/*
+	 * On MIPS (QCA953x S27 switch), keep the switch/GMAC active by
+	 * sending periodic ARP requests.  The S27 switch ARL table ages
+	 * out CPU port entries when idle, stopping forwarding of broadcast
+	 * packets (DHCP DISCOVER) to the GMAC.
+	 */
+#ifdef __mips__
+	{
+		static ulong last_arp;
+		ulong now = get_timer(0);
+
+		if (now - last_arp > 2000) {
+			uchar broadcast[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+			struct in_addr target;
+			target.s_addr = net_gateway.s_addr;
+			arp_raw_request(net_ip, broadcast, target);
+			last_arp = now;
+		}
+	}
+#endif
 }
 
 static int mtk_tcp_send_packet_opt(struct mtk_tcp_conn *c, u16 flags, u32 seq, u32 ack,
