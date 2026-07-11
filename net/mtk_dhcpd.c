@@ -21,6 +21,7 @@
 #include <vsprintf.h>
 
 #include <net/mtk_dhcpd.h>
+#include "arp.h"
 
 #define DHCPD_SERVER_PORT	67
 #define DHCPD_CLIENT_PORT	68
@@ -757,11 +758,21 @@ int mtk_dhcpd_start(void)
 		if (!net_dns_server.s_addr)
 			net_dns_server = net_ip;
 
-		dhcpd_log("DHCP server re-registered after net_init\n");
-		dhcpd_log("  Server IP  : %pI4\n", &net_ip);
-		dhcpd_log("  Netmask    : %pI4\n", &net_netmask);
-		dhcpd_log("  Gateway    : %pI4\n", &net_gateway);
-		dhcpd_log("  DNS        : %pI4\n", &net_dns_server);
+		/*
+		 * On MIPS (QCA953x S27 switch), send an ARP who-has for
+		 * the gateway to prime the switch ARL table.  Without this,
+		 * the idle switch stops forwarding broadcast packets (DHCP
+		 * DISCOVER) to the GMAC, preventing the failsafe web UI
+		 * from receiving any packets.
+		 */
+#ifdef __mips__
+		{
+			uchar broadcast[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+			struct in_addr target;
+			target.s_addr = net_gateway.s_addr;
+			arp_raw_request(net_ip, broadcast, target);
+		}
+#endif
 
 		return 0;
 	}
