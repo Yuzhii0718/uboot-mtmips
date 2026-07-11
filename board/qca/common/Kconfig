@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# QCA platform common configuration
+#
+
+config QCA_FAILSAFE_NAND
+	bool "Enable NAND flash support for QCA failsafe"
+	depends on WEBUI_FAILSAFE && MTD && ARCH_ATH79
+	default n
+	help
+	  Enable NAND flash write path for the web failsafe UI.
+	  When enabled, the failsafe write functions will perform
+	  bad-block-aware erase/write suitable for NAND flash.
+	  When disabled (default), only NOR flash is supported.
+
+	  This option is kept for future NAND board support.
+	  Current QCA boards (AP143/AP135/AP152) use NOR flash only.

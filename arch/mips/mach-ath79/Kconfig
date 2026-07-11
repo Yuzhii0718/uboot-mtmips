@@ -81,6 +81,7 @@ source "board/qca/ap121/Kconfig"
 source "board/qca/ap135/Kconfig"
 source "board/qca/ap143/Kconfig"
 source "board/qca/ap152/Kconfig"
+source "board/qca/common/Kconfig"
 source "board/tplink/wdr4300/Kconfig"
 
 endmenu
