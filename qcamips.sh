@@ -78,11 +78,11 @@ if [ -z "$SOC" ]; then
 fi
 
 case "$SOC" in
-	qca953x|qca955x|qca956x|ap135|ap143|ap152)
+	qca953x|qca955x|qca956x|tp934x|ap135|ap143|ap152|cus249)
 		SOC_DEFCONFIG="$SOC"
 		;;
 	*)
-		echo "Error: Unsupported SOC='$SOC'. Valid values: qca953x, qca955x, qca956x, ap135, ap143, ap152"
+		echo "Error: Unsupported SOC='$SOC'. Valid values: qca953x, qca955x, qca956x, tp934x, ap135, ap143, ap152, cus249"
 		exit 1
 		;;
 esac
