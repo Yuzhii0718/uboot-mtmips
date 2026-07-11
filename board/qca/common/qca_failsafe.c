@@ -34,6 +34,7 @@ static int qca_mtd_setup(void)
 
 	run_command("sf probe", 0);
 	run_command("mtdparts default", 0);
+	mtd_probe_devices();
 	done = 1;
 	return 0;
 }

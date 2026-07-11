@@ -178,6 +178,7 @@ static int do_qcaupgrade(struct cmd_tbl *cmdtp, int flag, int argc,
 	/* Step 3: Flash init */
 	run_command("sf probe", 0);
 	run_command("mtdparts default", 0);
+	mtd_probe_devices();
 
 	/* Step 4: Write to flash */
 	printf("\n=== Writing %s (%zu bytes) to '%s' ===\n",
