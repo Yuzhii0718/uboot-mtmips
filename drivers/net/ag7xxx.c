@@ -511,6 +511,7 @@ static int ag7xxx_eth_recv(struct udevice *dev, int flags, uchar **packetp)
 	struct ar7xxx_eth_priv *priv = dev_get_priv(dev);
 	struct ag7xxx_dma_desc *curr;
 	u32 start, end, length;
+	int i;
 
 	curr = &priv->rx_mac_descrtable[priv->rx_currdescnum];
 
@@ -520,9 +521,34 @@ static int ag7xxx_eth_recv(struct udevice *dev, int flags, uchar **packetp)
 	invalidate_dcache_range(start, end);
 
 	/* No packets received. */
-	if (curr->config & AG7XXX_DMADESC_IS_EMPTY)
-		return -EAGAIN;
+	if (curr->config & AG7XXX_DMADESC_IS_EMPTY) {
+		/*
+		 * Check hardware DMA counter (ref: 0x194 >> 16).
+		 * If DMA actually received packets but the descriptor
+		 * chain is out of sync, advance to find valid data.
+		 */
+		u32 dma_cnt = readl(priv->regs + AG7XXX_ETH_DMA_RX_STATUS) >> 16;
 
+		if (dma_cnt == 0)
+			return -EAGAIN;
+
+		/* DMA has packets but descriptor chain is desynced.
+		 * Search for the first non-empty descriptor. */
+		for (i = 0; i < CFG_RX_DESCR_NUM; i++) {
+			priv->rx_currdescnum = (priv->rx_currdescnum + 1) %
+					       CFG_RX_DESCR_NUM;
+			curr = &priv->rx_mac_descrtable[priv->rx_currdescnum];
+			start = (u32)curr;
+			end = start + sizeof(*curr);
+			invalidate_dcache_range(start, end);
+			if (!(curr->config & AG7XXX_DMADESC_IS_EMPTY))
+				goto have_packet;
+		}
+		/* All descriptors empty despite non-zero DMA counter */
+		return -EAGAIN;
+	}
+
+have_packet:
 	length = curr->config & AG7XXX_DMADESC_PKT_SIZE_MASK;
 
 	/* Cache: Invalidate buffer. */
@@ -546,10 +572,28 @@ static int ag7xxx_eth_free_pkt(struct udevice *dev, uchar *packet,
 
 	curr->config = AG7XXX_DMADESC_IS_EMPTY;
 
+	/* Acknowledge DMA RX counter (ref: write 1 to 0x194) */
+	writel(1, priv->regs + AG7XXX_ETH_DMA_RX_STATUS);
+
 	/* Cache: Flush descriptor. */
 	start = (u32)curr;
 	end = start + sizeof(*curr);
 	flush_dcache_range(start, end);
+
+	/*
+	 * Restart RX DMA if it has stopped (matching reference driver's
+	 * ath_gmac_recv()).  The AG7xxx DMA engine stops when all
+	 * descriptors are full (no EMPTY descriptor available for a new
+	 * packet).  After we free a descriptor, we must manually restart
+	 * the DMA — it does NOT auto-resume polling.
+	 */
+	if (!(readl(priv->regs + AG7XXX_ETH_DMA_RX_CTRL) &
+	      AG7XXX_ETH_DMA_RX_CTRL_RXE)) {
+		writel(virt_to_phys(curr),
+		       priv->regs + AG7XXX_ETH_DMA_RX_DESC);
+		writel(AG7XXX_ETH_DMA_RX_CTRL_RXE,
+		       priv->regs + AG7XXX_ETH_DMA_RX_CTRL);
+	}
 
 	/* Switch to next RX descriptor. */
 	priv->rx_currdescnum = (priv->rx_currdescnum + 1) % CFG_RX_DESCR_NUM;
@@ -579,7 +623,7 @@ static int ag7xxx_eth_start(struct udevice *dev)
 	    priv->model == AG7XXX_MODEL_AG955X ||
 	    priv->model == AG7XXX_MODEL_AG956X) {
 		int try, last_ret = 0;
-		u16 last_reg = 0;
+		u16 last_regs[5] = {0};
 
 		for (try = 0; try < 20 && !link_up; try++) {
 			u16 reg;
@@ -592,7 +636,7 @@ static int ag7xxx_eth_start(struct udevice *dev)
 				ret = ag7xxx_switch_read(priv->bus, 4,
 							 MII_MIPSCR, &reg);
 				last_ret = ret;
-				last_reg = reg;
+				last_regs[4] = reg;
 				if (ret == 0 && (reg & 0x0400))
 					link_up = 1;
 			} else {
@@ -602,7 +646,7 @@ static int ag7xxx_eth_start(struct udevice *dev)
 								 MII_MIPSCR,
 								 &reg);
 					last_ret = ret;
-					last_reg = reg;
+					last_regs[i] = reg;
 					if (ret == 0 && (reg & 0x0400)) {
 						link_up = 1;
 						break;
@@ -612,8 +656,14 @@ static int ag7xxx_eth_start(struct udevice *dev)
 		}
 
 		if (!link_up) {
-			printf("ag7xxx: %s link detect: ret=%d MII_MIPSCR=0x%04x\n",
-			       dev->name, last_ret, last_reg);
+			printf("ag7xxx: %s no link after 2s. ret=%d p0=0x%04x p1=0x%04x p2=0x%04x p3=0x%04x%s\n",
+			       dev->name, last_ret,
+			       last_regs[0], last_regs[1], last_regs[2], last_regs[3],
+			       priv->interface == PHY_INTERFACE_MODE_RMII ?
+			       "" : "");
+			if (priv->interface == PHY_INTERFACE_MODE_RMII)
+				printf("ag7xxx: %s p4=0x%04x\n",
+				       dev->name, last_regs[4]);
 		}
 	} else if (priv->model == AG7XXX_MODEL_AG933X) {
 		int try;
@@ -664,6 +714,16 @@ static int ag7xxx_eth_start(struct udevice *dev)
 	ag7xxx_dma_clean_tx(dev);
 	ag7xxx_dma_clean_rx(dev);
 
+	/*
+	 * Re-write FIFO_CFG_0 and CFG1(RX_EN|TX_EN) at every start,
+	 * matching the reference driver's ath_gmac_clean_rx() init
+	 * sequence.  On QCA953x these can be clobbered between probe
+	 * and the first net session start.
+	 */
+	writel(0x1f00, priv->regs + AG7XXX_ETH_FIFO_CFG_0);
+	writel(AG7XXX_ETH_CFG1_RX_EN | AG7XXX_ETH_CFG1_TX_EN,
+	       priv->regs + AG7XXX_ETH_CFG1);
+
 	/* Load DMA descriptors and start the RX DMA. */
 	writel(virt_to_phys(&priv->tx_mac_descrtable[priv->tx_currdescnum]),
 	       priv->regs + AG7XXX_ETH_DMA_TX_DESC);
@@ -672,12 +732,33 @@ static int ag7xxx_eth_start(struct udevice *dev)
 	writel(AG7XXX_ETH_DMA_RX_CTRL_RXE,
 	       priv->regs + AG7XXX_ETH_DMA_RX_CTRL);
 
+	/*
+	 * 1-second settling delay after DMA start, matching the
+	 * reference driver (udelay(1000*1000)).  Gives the switch
+	 * and PHY time to forward buffered packets into the DMA.
+	 */
+	mdelay(1000);
+
 	return 0;
 }
 
 static void ag7xxx_eth_stop(struct udevice *dev)
 {
 	struct ar7xxx_eth_priv *priv = dev_get_priv(dev);
+
+	/*
+	 * Match the reference driver's ath_gmac_halt() sequence:
+	 * 1. Clear RX_EN and TX_EN in CFG1
+	 * 2. Write 0x1f1f to FIFO_CFG_0 (puts FIFOs in reset-safe state)
+	 * 3. Stop DMA engines
+	 *
+	 * Without CFG1 clear, the GMAC may stay in a bad state across
+	 * stop/start cycles, preventing subsequent eth_start() from
+	 * receiving packets or even detecting link.
+	 */
+	clrbits_be32(priv->regs + AG7XXX_ETH_CFG1,
+		     AG7XXX_ETH_CFG1_RX_EN | AG7XXX_ETH_CFG1_TX_EN);
+	writel(0x1f1f, priv->regs + AG7XXX_ETH_FIFO_CFG_0);
 
 	/* Stop the TX DMA. */
 	writel(0, priv->regs + AG7XXX_ETH_DMA_TX_CTRL);
