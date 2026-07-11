@@ -64,6 +64,18 @@ config QCA_FAILSAFE_NAND
 	  This option is kept for future NAND board support.
 	  Current QCA boards (AP143/AP135/AP152) use NOR flash only.
 
+config QCA_WEB_FAILSAFE_AFTER_BOOT_FAILURE
+	bool "Automatically start failsafe after booting failure"
+	depends on QCA_BOOTMENU && WEBUI_FAILSAFE
+	default y
+	help
+	  If the default OS boot fails, the Web failsafe UI will be
+	  started automatically so that a working firmware image can
+	  be uploaded without re-entering the bootmenu.
+
+	  When disabled, a boot failure simply returns to the
+	  U-Boot console prompt.
+
 if ARCH_ATH79 && WEBUI_FAILSAFE
 
 config WEBUI_FAILSAFE_VENDOR

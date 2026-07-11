@@ -21,6 +21,9 @@ static int do_qcaboardboot(struct cmd_tbl *cmdtp, int flag, int argc,
 	if (ret)
 		ret = CMD_RET_FAILURE;
 
+	if (IS_ENABLED(CONFIG_QCA_WEB_FAILSAFE_AFTER_BOOT_FAILURE))
+		run_command("httpd", 0);
+
 	return ret;
 }
 
