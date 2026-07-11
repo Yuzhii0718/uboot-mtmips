@@ -140,7 +140,7 @@ static int legacy_write_firmware(const void *data, size_t size)
 
 	if (size > rootfs_size + uimage_size) {
 		printf("Error: firmware image too large (%zu > %llu)\n",
-		       size, rootfs_size + uimage_size);
+		       size, (unsigned long long)(rootfs_size + uimage_size));
 		put_mtd_device(mtd_rootfs);
 		put_mtd_device(mtd_uimage);
 		return -ENOSPC;
@@ -218,7 +218,7 @@ int failsafe_validate_image(const void *data, size_t size)
 		     off + sizeof(struct legacy_img_hdr) <= size;
 		     off += 4) {
 			p = (const u8 *)data + off;
-			if (image_check_magic(p) ||
+			if (image_check_magic((const struct legacy_img_hdr *)p) ||
 			    genimg_get_format(p) == IMAGE_FORMAT_FIT)
 				return 0;
 		}
@@ -251,7 +251,7 @@ int failsafe_validate_uboot(const void *data, size_t size)
 
 int failsafe_write_uboot(const void *data, size_t size)
 {
-	printf("\n*** Upgrading U-Boot (%zu bytes) ***\n");
+	printf("\n*** Upgrading U-Boot (%zu bytes) ***\n", size);
 	printf("*** WARNING: Do not power off during write! ***\n\n");
 	return nor_erase_write(QCA_LEGACY_UBOOT_PART, data, size);
 }
