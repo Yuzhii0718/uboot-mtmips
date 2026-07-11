@@ -1,32 +1,33 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
  * Copyright (C) 2018 Stefan Roese <sr@denx.de>
+ *
+ * GARDENA smart Gateway (MT7688) specific code:
+ * - Factory data reading from SPI NOR flash
+ * - Environment variable population from factory data
+ * - fd_write command for writing test factory-data values
  */
 
 #include <command.h>
 #include <env.h>
 #include <env_internal.h>
 #include <init.h>
-#include <led.h>
 #include <log.h>
 #include <malloc.h>
 #include <net.h>
 #include <spi.h>
 #include <spi_flash.h>
 #include <linux/delay.h>
+#include <linux/io.h>
 #include <linux/stringify.h>
 #include <u-boot/crc.h>
 #include <u-boot/uuid.h>
 #include <linux/ctype.h>
-#include <linux/io.h>
 
 #define MT76XX_AGPIO_CFG	0x1000003c
 
 #define FACTORY_DATA_OFFS	0xc0000
 #define FACTORY_DATA_SECT_SIZE	0x10000
-#if ((CONFIG_ENV_OFFSET_REDUND + CONFIG_ENV_SIZE) > FACTORY_DATA_OFFS)
-#error "U-Boot image with environment too big (overlapping with factory-data)!"
-#endif
 #define FACTORY_DATA_USER_OFFS	0x140
 #define FACTORY_DATA_SIZE	0x1f0
 #define FACTORY_DATA_CRC_LEN	(FACTORY_DATA_SIZE -			\
@@ -49,15 +50,16 @@ struct factory_data_values {
 	char unielec_id[UUID_STR_LEN];	/* UUID as string w/o ending \0 */
 };
 
-int board_early_init_f(void)
+/*
+ * Override the weak hook from arch/mips/mach-mtmips/mt7628/init.c
+ * to configure digital vs analog GPIOs for the GARDENA board.
+ */
+void board_gardena_early_init_hook(void)
 {
 	void __iomem *gpio_mode;
 
-	/* Configure digital vs analog GPIOs */
 	gpio_mode = ioremap_nocache(MT76XX_AGPIO_CFG, 0x100);
 	iowrite32(0x00fe01ff, gpio_mode);
-
-	return 0;
 }
 
 static bool prepare_uuid_var(const char *fd_ptr, const char *env_var_name,
@@ -229,7 +231,7 @@ int do_fd_write(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 
 	/* Generate the factory-data struct */
 
-	/* Fist read complete sector into buffer */
+	/* First read complete sector into buffer */
 	ret = spi_flash_read(sf, FACTORY_DATA_OFFS, FACTORY_DATA_SECT_SIZE,
 			     (void *)buf);
 	if (ret) {

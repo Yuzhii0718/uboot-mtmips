@@ -4,13 +4,6 @@ if SOC_MT7628
 choice
 	prompt "Board select"
 
-config BOARD_GARDENA_SMART_GATEWAY_MT7688
-	bool "GARDENA smart Gateway"
-	select BOARD_LATE_INIT
-	help
-	  GARDENA smart Gateway boards have a MT7688 SoC with 128 MiB of RAM
-	  and 8 MiB of flash (SPI NOR) and additional SPI NAND storage.
-
 config BOARD_MT7628_RFB
 	bool "MediaTek MT7628 RFB"
 	help
@@ -34,6 +27,13 @@ config SYS_BOARD
 config SYS_CONFIG_NAME
 	default "mt7628" if SOC_MT7628
 
-source "board/gardena/smart-gateway-mt7688/Kconfig"
+config MT7688_BOARD_GARDENA
+	bool "GARDENA smart Gateway board support"
+	depends on BOARD_MT7628_RFB
+	select BOARD_LATE_INIT
+	help
+	  GARDENA smart Gateway boards have a MT7688 SoC with 128 MiB of RAM
+	  and 8 MiB of flash (SPI NOR) and additional SPI NAND storage.
+	  Uses UART0 and requires custom GPIO analog/digital configuration.
 
 endif

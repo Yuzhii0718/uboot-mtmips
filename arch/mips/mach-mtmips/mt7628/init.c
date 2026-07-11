@@ -34,6 +34,10 @@ void board_debug_uart_init(void)
 	}
 }
 
+__weak void board_gardena_early_init_hook(void)
+{
+}
+
 int board_early_init_f(void)
 {
 	/*
@@ -41,6 +45,8 @@ int board_early_init_f(void)
 	 * is not enabled. So we need to call this function here as well.
 	 */
 	board_debug_uart_init();
+
+	board_gardena_early_init_hook();
 
 	return 0;
 }
