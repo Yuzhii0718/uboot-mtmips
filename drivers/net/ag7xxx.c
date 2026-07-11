@@ -578,7 +578,8 @@ static int ag7xxx_eth_start(struct udevice *dev)
 	if (priv->model == AG7XXX_MODEL_AG953X ||
 	    priv->model == AG7XXX_MODEL_AG955X ||
 	    priv->model == AG7XXX_MODEL_AG956X) {
-		int try;
+		int try, last_ret = 0;
+		u16 last_reg = 0;
 
 		for (try = 0; try < 20 && !link_up; try++) {
 			u16 reg;
@@ -590,6 +591,8 @@ static int ag7xxx_eth_start(struct udevice *dev)
 				/* WAN: check switch port 4 */
 				ret = ag7xxx_switch_read(priv->bus, 4,
 							 MII_MIPSCR, &reg);
+				last_ret = ret;
+				last_reg = reg;
 				if (ret == 0 && (reg & 0x0400))
 					link_up = 1;
 			} else {
@@ -598,12 +601,19 @@ static int ag7xxx_eth_start(struct udevice *dev)
 					ret = ag7xxx_switch_read(priv->bus, i,
 								 MII_MIPSCR,
 								 &reg);
+					last_ret = ret;
+					last_reg = reg;
 					if (ret == 0 && (reg & 0x0400)) {
 						link_up = 1;
 						break;
 					}
 				}
 			}
+		}
+
+		if (!link_up) {
+			printf("ag7xxx: %s link detect: ret=%d MII_MIPSCR=0x%04x\n",
+			       dev->name, last_ret, last_reg);
 		}
 	} else if (priv->model == AG7XXX_MODEL_AG933X) {
 		int try;
