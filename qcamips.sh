@@ -1,18 +1,21 @@
 #!/bin/sh
 # ============================================================================
 # qcamips.sh - Build U-Boot for QCA MIPS32 platform
-#              (QCA953X / QCA955X / QCA956X)
+#              (QCA953X / QCA955X / QCA956X / AP135 / AP143 / AP152)
 #
 # Usage:
-#   SOC=<qca953x|qca955x|qca956x> ./qcamips.sh
+#   SOC=<qca953x|qca955x|qca956x|ap135|ap143|ap152> ./qcamips.sh
 #
 # Examples:
 #   SOC=qca953x ./qcamips.sh
 #   SOC=qca955x ./qcamips.sh
 #   SOC=qca956x ./qcamips.sh
+#   SOC=ap135  ./qcamips.sh
+#   SOC=ap143  ./qcamips.sh
+#   SOC=ap152  ./qcamips.sh
 #
 # Environment variables:
-#   SOC           Target SoC (required: qca953x, qca955x, qca956x)
+#   SOC           Target SoC (required: qca953x, qca955x, qca956x, ap135, ap143, ap152)
 #   TOOLCHAIN     Cross-compiler prefix (auto-detected if empty)
 #   JOBS          Parallel make jobs (default: nproc)
 #   STAGING_DIR   Staging directory (passed to make)
@@ -36,12 +39,12 @@ set -e
 # ---------------------------------------------------------------------------
 show_help() {
 	cat <<'EOF'
-Usage: SOC=<qca953x|qca955x|qca956x> [OPTIONS] ./qcamips.sh
+Usage: SOC=<qca953x|qca955x|qca956x|ap135|ap143|ap152> [OPTIONS] ./qcamips.sh
 
-Build U-Boot for QCA MIPS32 (QCA953X / QCA955X / QCA956X) platform.
+Build U-Boot for QCA MIPS32 (QCA953X / QCA955X / QCA956X / AP135 / AP143 / AP152) platform.
 
 Required:
-  SOC=<qca953x|qca955x|qca956x>   Target SoC
+  SOC=<qca953x|qca955x|qca956x|ap135|ap143|ap152>   Target SoC
 
 Options:
   TOOLCHAIN=...   Cross-compiler prefix (auto-detected from ../openwrt*/toolchain-mips*/)
@@ -52,6 +55,9 @@ Examples:
   SOC=qca953x ./qcamips.sh
   SOC=qca955x ./qcamips.sh
   SOC=qca956x ./qcamips.sh
+  SOC=ap135  ./qcamips.sh
+  SOC=ap143  ./qcamips.sh
+  SOC=ap152  ./qcamips.sh
 EOF
 }
 
@@ -66,17 +72,17 @@ esac
 # Validate SOC
 # ---------------------------------------------------------------------------
 if [ -z "$SOC" ]; then
-	echo "Usage: SOC=<qca953x|qca955x|qca956x> $0"
+	echo "Usage: SOC=<qca953x|qca955x|qca956x|ap135|ap143|ap152> $0"
 	echo "Try '$0 --help' for more information."
 	exit 1
 fi
 
 case "$SOC" in
-	qca953x|qca955x|qca956x)
+	qca953x|qca955x|qca956x|ap135|ap143|ap152)
 		SOC_DEFCONFIG="$SOC"
 		;;
 	*)
-		echo "Error: Unsupported SOC='$SOC'. Valid values: qca953x, qca955x, qca956x"
+		echo "Error: Unsupported SOC='$SOC'. Valid values: qca953x, qca955x, qca956x, ap135, ap143, ap152"
 		exit 1
 		;;
 esac
