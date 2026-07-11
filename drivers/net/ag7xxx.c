@@ -569,45 +569,64 @@ static int ag7xxx_eth_start(struct udevice *dev)
 	 * (RGMII, switch ports 0-3).  If the current interface has
 	 * no link, return an error so U-Boot falls back to the other
 	 * interface — matching the old Qualcomm driver behaviour.
+	 *
+	 * PHY auto-negotiation can take 1-2 seconds, so we retry for
+	 * up to 2 seconds (20 attempts × 100 ms) before giving up.
+	 * This is especially important for the Web failsafe which
+	 * starts the network immediately during bootmenu entry.
 	 */
 	if (priv->model == AG7XXX_MODEL_AG953X ||
 	    priv->model == AG7XXX_MODEL_AG955X ||
 	    priv->model == AG7XXX_MODEL_AG956X) {
-		u16 reg;
+		int try;
 
-		if (priv->interface == PHY_INTERFACE_MODE_RMII) {
-			/* WAN port: check switch port 4 (MII addr 4) */
-			ret = ag7xxx_switch_read(priv->bus, 4, MII_MIPSCR, &reg);
-			if (ret == 0 && (reg & 0x0400))
-				link_up = 1;
-		} else {
-			/* LAN switch: any of ports 0-3 has link? */
-			for (i = 0; i < 4; i++) {
-				ret = ag7xxx_switch_read(priv->bus, i,
+		for (try = 0; try < 20 && !link_up; try++) {
+			u16 reg;
+
+			if (try > 0)
+				mdelay(100);
+
+			if (priv->interface == PHY_INTERFACE_MODE_RMII) {
+				/* WAN: check switch port 4 */
+				ret = ag7xxx_switch_read(priv->bus, 4,
 							 MII_MIPSCR, &reg);
-				if (ret == 0 && (reg & 0x0400)) {
+				if (ret == 0 && (reg & 0x0400))
 					link_up = 1;
-					break;
+			} else {
+				/* LAN: any of ports 0-3 has link? */
+				for (i = 0; i < 4; i++) {
+					ret = ag7xxx_switch_read(priv->bus, i,
+								 MII_MIPSCR,
+								 &reg);
+					if (ret == 0 && (reg & 0x0400)) {
+						link_up = 1;
+						break;
+					}
 				}
 			}
 		}
 	} else if (priv->model == AG7XXX_MODEL_AG933X) {
-		/* AR933X switch: ports 0-3 for LAN, port 4 for WAN */
+		int try;
 
-		if (priv->interface == PHY_INTERFACE_MODE_RMII) {
-			/* WAN — port 4 via mdio */
-			ret = ag7xxx_mdio_read(priv->bus, 4, 0,
-					       MII_MIPSCR);
-			if (ret >= 0 && (ret & 0x0400))
-				link_up = 1;
-		} else {
-			/* LAN — ports 0-3 via mdio */
-			for (i = 0; i < 4; i++) {
-				ret = ag7xxx_mdio_read(priv->bus, i, 0,
+		for (try = 0; try < 20 && !link_up; try++) {
+			if (try > 0)
+				mdelay(100);
+
+			if (priv->interface == PHY_INTERFACE_MODE_RMII) {
+				/* WAN — port 4 via mdio */
+				ret = ag7xxx_mdio_read(priv->bus, 4, 0,
 						       MII_MIPSCR);
-				if (ret >= 0 && (ret & 0x0400)) {
+				if (ret >= 0 && (ret & 0x0400))
 					link_up = 1;
-					break;
+			} else {
+				/* LAN — ports 0-3 via mdio */
+				for (i = 0; i < 4; i++) {
+					ret = ag7xxx_mdio_read(priv->bus, i, 0,
+							       MII_MIPSCR);
+					if (ret >= 0 && (ret & 0x0400)) {
+						link_up = 1;
+						break;
+					}
 				}
 			}
 		}
