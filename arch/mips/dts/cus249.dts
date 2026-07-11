@@ -1,0 +1,61 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (c) 2014 Qualcomm Atheros, Inc.
+ * Copyright (C) 2026 Yuzhii0718 <admin@yuzhii0718.eu.org>
+ *
+ * CUS249 Reference Board (QCA956X + S27 internal switch)
+ * - GE0: RMII WAN
+ * - GE1: RGMII LAN with S27 internal switch
+ * - No PCI, No USB
+ */
+
+/dts-v1/;
+#include "qca956x.dtsi"
+
+/ {
+	model = "CUS249 Reference Board";
+	compatible = "qca,cus249", "qca,qca956x";
+
+	aliases {
+		spi0 = &spi0;
+		serial0 = &uart0;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+};
+
+&xtal {
+	clock-frequency = <25000000>;
+};
+
+&uart0 {
+	clock-frequency = <25000000>;
+	status = "okay";
+};
+
+&spi0 {
+	spi-max-frequency = <25000000>;
+	status = "okay";
+	spi-flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "spi-flash";
+		memory-map = <0x9f000000 0x01000000>;
+		spi-max-frequency = <25000000>;
+		reg = <0>;
+	};
+};
+
+/* WAN: RMII on GE0 */
+&gmac0 {
+	phy-mode = "rmii";
+	status = "okay";
+};
+
+/* LAN: RGMII with internal S27 switch on GE1 */
+&gmac1 {
+	phy-mode = "rgmii";
+	status = "okay";
+};

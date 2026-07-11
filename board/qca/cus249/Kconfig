@@ -1,0 +1,15 @@
+if TARGET_CUS249
+
+config SYS_VENDOR
+	default "qca"
+
+config SYS_BOARD
+	default "cus249"
+
+config SYS_CONFIG_NAME
+	default "cus249"
+
+config TEXT_BASE
+	default 0x9f000000
+
+endif

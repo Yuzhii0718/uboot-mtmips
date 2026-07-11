@@ -72,6 +72,14 @@
 					};
 				};
 			};
+
+			gmac1: eth@0x1a000000 {
+				compatible = "qca,ag956x-mac";
+				reg = <0x1a000000 0x200>;
+				phy-mode = "rgmii";
+
+				status = "disabled";
+			};
 		};
 
 		spi0: spi@1f000000 {

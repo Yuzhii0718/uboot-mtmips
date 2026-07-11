@@ -1400,7 +1400,20 @@ static int ag7xxx_mac_probe(struct udevice *dev)
 		ret = ag934x_phy_setup(dev);
 	} else if (priv->model == AG7XXX_MODEL_AG955X ||
 		   priv->model == AG7XXX_MODEL_AG956X) {
-		ret = ag956x_phy_setup(dev);
+		/*
+		 * Boards with internal S27 switch (e.g. CUS249) use RGMII
+		 * on GE1.  Boards with external S17/AR8337 switch (e.g.
+		 * AP152) use SGMII on GE0.  Select the right init path.
+		 */
+		if (priv->interface == PHY_INTERFACE_MODE_RGMII ||
+		    priv->interface == PHY_INTERFACE_MODE_RGMII_ID ||
+		    priv->interface == PHY_INTERFACE_MODE_RGMII_RXID ||
+		    priv->interface == PHY_INTERFACE_MODE_RGMII_TXID)
+			ret = ag953x_phy_setup_lan(dev);
+		else if (priv->interface == PHY_INTERFACE_MODE_RMII)
+			ret = ag953x_phy_setup_wan(dev);
+		else
+			ret = ag956x_phy_setup(dev);
 	} else {
 		return -EINVAL;
 	}

@@ -1,0 +1,6 @@
+CUS249 RFB BOARD
+M:	Yuzhii0718 <admin@yuzhii0718@eu.org>
+S:	Maintained
+F:	board/qca/cus249/
+F:	include/configs/cus249.h
+F:	configs/cus249_defconfig
