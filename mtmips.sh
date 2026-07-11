@@ -55,12 +55,11 @@ Options:
   STAGING_DIR=... Staging directory (auto-detected from TOOLCHAIN)
 
 Examples:
-  SOC=mt7620 BOARD=rfb                 ./mtmips.sh
+  SOC=mt7620 BOARD=rfb                ./mtmips.sh
   SOC=mt7621 BOARD=nmbm_rfb           ./mtmips.sh
   SOC=mt7621 BOARD=nand_ax_rfb        ./mtmips.sh
-  SOC=mt7628 BOARD=linkit-smart-7688  ./mtmips.sh
   SOC=mt7628 BOARD=rfb                ./mtmips.sh
-  SOC=mt7688 BOARD=linkit-smart-7688  ./mtmips.sh
+  SOC=mt7688 BOARD=linkit-smart		  ./mtmips.sh
 EOF
 }
 
@@ -93,11 +92,17 @@ case "$SOC" in
 		SOC_ID="mt7621"
 		SOC_DEFCONFIG="mt7621"
 		;;
-	mt7628|mt7688)
+	mt7628)
 		TOOLCHAIN_SUBPATH="ramips/mt76x8"
 		TOOLCHAIN_PATTERN="openwrt*mt76x8*"
-		SOC_ID="$SOC"
+		SOC_ID="mt7628"
 		SOC_DEFCONFIG="mt7628"
+		;;
+	mt7688)
+		TOOLCHAIN_SUBPATH="ramips/mt76x8"
+		TOOLCHAIN_PATTERN="openwrt*mt76x8*"
+		SOC_ID="mt7688"
+		SOC_DEFCONFIG="mt7688"
 		;;
 	*)
 		echo "Error: Unsupported SOC='$SOC'. Valid values: mt7620, mt7621, mt7628, mt7688"
