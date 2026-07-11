@@ -460,24 +460,19 @@ int start_web_failsafe(void)
 			net_netmask = string_to_ip("255.255.255.0");
 	}
 
-	/*
-	 * DHCPD is started AFTER net_clear_handlers() (inside net_init()
-	 * first call) will clear any previous UDP handler, but BEFORE
-	 * mtk_tcp_start() → mtk_dhcpd_tcp_start_hook() re-registers it.
-	 * The re-registration in the hook path handles this correctly.
-	 */
+	{
+		int nl_ret;
 #ifdef CONFIG_MTK_DHCPD
-	mtk_dhcpd_start();
-	printf("DHCP server started\n");
-	printf("  Server IP : %pI4\n", &net_ip);
-	printf("  Netmask   : %pI4\n", &net_netmask);
+		mtk_dhcpd_start();
+		printf("DHCP server started\n");
 #endif
 
-	net_loop(MTK_TCP);
+		nl_ret = net_loop(MTK_TCP);
 
 #ifdef CONFIG_MTK_DHCPD
-	mtk_dhcpd_stop();
+		mtk_dhcpd_stop();
 #endif
+	}
 
 	return 0;
 }
