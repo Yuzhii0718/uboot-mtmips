@@ -481,6 +481,8 @@ const char *bootdelay_process(void)
 	if (IS_ENABLED(CONFIG_AUTOBOOT_MENU_SHOW)) {
 		if (IS_ENABLED(CONFIG_AUTOBOOT_MENU_MTK_SHOW))
 			run_command("mtkautoboot", 0);
+		else if (IS_ENABLED(CONFIG_AUTOBOOT_MENU_QCA_SHOW))
+			run_command("qcaautoboot", 0);
 		else
 			bootdelay = menu_show(bootdelay);
 	}

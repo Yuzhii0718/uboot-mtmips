@@ -3,6 +3,36 @@
 # QCA platform common configuration
 #
 
+menuconfig QCA_BOOTMENU
+	bool "Enable QCA bootmenu framework"
+	depends on ARCH_ATH79
+	select CMD_BOOTMENU
+	select CMD_MTD
+	default n
+	help
+	  Enable QCA bootmenu containing features for easy
+	  firmware/bootloader upgrading and booting via a
+	  countdown menu at startup.
+
+if QCA_BOOTMENU
+
+config QCA_BOOTMENU_COUNTDOWN
+	bool "Enable bootmenu countdown"
+	default y
+	help
+	  Enable bootmenu auto-booting countdown timer.
+
+config QCA_BOOTMENU_DELAY
+	int "QCA bootmenu delay time (s)"
+	range 1 10
+	default 4
+	depends on QCA_BOOTMENU_COUNTDOWN
+	help
+	  The delay seconds for the bootmenu to show before running
+	  the default command.
+
+endif # QCA_BOOTMENU
+
 config QCA_FAILSAFE_NAND
 	bool "Enable NAND flash support for QCA failsafe"
 	depends on WEBUI_FAILSAFE && MTD && ARCH_ATH79
