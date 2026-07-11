@@ -8,6 +8,7 @@
  */
 
 #include <command.h>
+#include <env.h>
 #include <errno.h>
 #include <malloc.h>
 #include <net.h>
@@ -438,9 +439,38 @@ int start_web_failsafe(void)
 #endif
 	httpd_register_uri_handler(inst, "", &not_found_handler, NULL);
 
+	/*
+	 * Ensure network globals are set from env before entering net_loop().
+	 * net_loop() calls net_init() which calls net_init_loop() — this
+	 * copies ethaddr and handles IPv6.  We set ip/netmask here so that
+	 * net_check_prereq(MTK_TCP) has valid net_ip to check.
+	 */
+	if (!net_ip.s_addr) {
+		const char *ip = env_get("ipaddr");
+		if (ip)
+			net_ip = string_to_ip(ip);
+		else
+			net_ip = string_to_ip("192.168.1.1");
+	}
+	if (!net_netmask.s_addr) {
+		const char *nm = env_get("netmask");
+		if (nm)
+			net_netmask = string_to_ip(nm);
+		else
+			net_netmask = string_to_ip("255.255.255.0");
+	}
+
+	/*
+	 * DHCPD is started AFTER net_clear_handlers() (inside net_init()
+	 * first call) will clear any previous UDP handler, but BEFORE
+	 * mtk_tcp_start() → mtk_dhcpd_tcp_start_hook() re-registers it.
+	 * The re-registration in the hook path handles this correctly.
+	 */
 #ifdef CONFIG_MTK_DHCPD
 	mtk_dhcpd_start();
 	printf("DHCP server started\n");
+	printf("  Server IP : %pI4\n", &net_ip);
+	printf("  Netmask   : %pI4\n", &net_netmask);
 #endif
 
 	net_loop(MTK_TCP);
