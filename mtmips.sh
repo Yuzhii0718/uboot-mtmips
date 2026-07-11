@@ -7,10 +7,10 @@
 #   SOC=<mt7620|mt7621|mt7628|mt7688> BOARD=<board_name> ./mtmips.sh
 #
 # Examples:
-#   SOC=mt7620 BOARD=rfb                 ./mtmips.sh
+#   SOC=mt7620 BOARD=rfb                ./mtmips.sh
 #   SOC=mt7621 BOARD=nmbm_rfb           ./mtmips.sh
-#   SOC=mt7628 BOARD=linkit-smart-7688  ./mtmips.sh
-#   SOC=mt7688 BOARD=linkit-smart-7688  ./mtmips.sh
+#   SOC=mt7628 BOARD=rfb			    ./mtmips.sh
+#   SOC=mt7688 BOARD=linkit-smart  		./mtmips.sh
 #
 # Note: MT7628 and MT7688 share the same toolchain (ramips/mt76x8)
 #       and use "mt7628_" as the defconfig prefix.

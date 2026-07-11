@@ -10,10 +10,35 @@
 #include <asm/global_data.h>
 #include <dm/uclass.h>
 #include <dt-bindings/clock/mt7628-clk.h>
+#include <linux/bitops.h>
 #include <linux/io.h>
 #include "mt7628.h"
 
 DECLARE_GLOBAL_DATA_PTR;
+
+#define MT76XX_GPIO1_MODE	0x10000060
+
+void board_debug_uart_init(void)
+{
+	void __iomem *gpio_mode;
+
+	if (IS_ENABLED(CONFIG_CONS_INDEX) && CONFIG_CONS_INDEX == 3) {
+		/* Select UART2 mode instead of GPIO mode (default) */
+		gpio_mode = ioremap_nocache(MT76XX_GPIO1_MODE, 0x100);
+		clrbits_le32(gpio_mode, GENMASK(27, 26));
+	}
+}
+
+int board_early_init_f(void)
+{
+	/*
+	 * The pin muxing of UART2 also needs to be done if debug uart
+	 * is not enabled. So we need to call this function here as well.
+	 */
+	board_debug_uart_init();
+
+	return 0;
+}
 
 static void set_init_timer_freq(void)
 {

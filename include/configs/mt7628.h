@@ -10,12 +10,20 @@
 
 #define CFG_SYS_SDRAM_BASE		0x80000000
 
+#if defined(CONFIG_CONS_INDEX) && CONFIG_CONS_INDEX == 3
+#define CFG_SYS_INIT_SP_OFFSET		0x400000
+#else
 #define CFG_SYS_INIT_SP_OFFSET		0x80000
+#endif
 
 /* Serial SPL */
 #if defined(CONFIG_XPL_BUILD) && defined(CONFIG_SPL_SERIAL)
 #define CFG_SYS_NS16550_CLK		40000000
+#if defined(CONFIG_CONS_INDEX) && CONFIG_CONS_INDEX == 3
+#define CFG_SYS_NS16550_COM3		0xb0000e00
+#else
 #define CFG_SYS_NS16550_COM1		0xb0000c00
+#endif
 #endif
 
 /* Serial common */
