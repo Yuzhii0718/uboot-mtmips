@@ -5,26 +5,26 @@
 VENDOR_VALUE = $(subst $\",,$(CONFIG_WEBUI_FAILSAFE_VENDOR))
 
 quiet_cmd_gen_html = SED     $@
-cmd_gen_html = sed 's/{VENDOR}/$(VENDOR_VALUE)/g' < $< > $@
+cmd_gen_html = mkdir -p $(dir $@); sed 's/{VENDOR}/$(VENDOR_VALUE)/g' < $< > $@
 
-$(obj)/%.html: $(src)/%.html.in FORCE
+$(obj)/.mod/%.html: $(src)/%.html.in FORCE
 	$(call cmd,gen_html)
 
 # example:
 # obj-y += XXXX.o <- object file to generate
-# FILE_XXXX.o := YYYY.html <- actual html file to be embedded
+# FILE_XXXX.o := .mod/YYYY.html <- generated html (from YYYY.html.in)
 # FSPATH_XXXX.o := ZZZ/WWW.EXT <- virtual fs path to be used inside u-boot
 
 obj-y += index.o
-FILE_index.o := index.html
+FILE_index.o := .mod/index.html
 FSPATH_index.o := index.html
 
 obj-y += upload.o
-FILE_upload.o := upload.html
+FILE_upload.o := .mod/upload.html
 FSPATH_upload.o := upload.html
 
 obj-y += flashing.o
-FILE_flashing.o := flashing.html
+FILE_flashing.o := .mod/flashing.html
 FSPATH_flashing.o := flashing.html
 
 obj-y += success.o
@@ -36,11 +36,11 @@ FILE_fail.o := fail.html
 FSPATH_fail.o := fail.html
 
 obj-y += validate_fail.o
-FILE_validate_fail.o := validate_fail.html
+FILE_validate_fail.o := .mod/validate_fail.html
 FSPATH_validate_fail.o := validate_fail.html
 
 obj-y += 404.o
-FILE_404.o := 404.html
+FILE_404.o := .mod/404.html
 FSPATH_404.o := 404.html
 
 obj-y += style.o
@@ -48,11 +48,11 @@ FILE_style.o := style.css
 FSPATH_style.o := style.css
 
 obj-$(CONFIG_WEBUI_FAILSAFE_INITRAMFS) += initramfs.o
-FILE_initramfs.o := initramfs.html
+FILE_initramfs.o := .mod/initramfs.html
 FSPATH_initramfs.o := initramfs.html
 
 obj-$(CONFIG_WEBUI_FAILSAFE_INITRAMFS) += booting.o
-FILE_booting.o := booting.html
+FILE_booting.o := .mod/booting.html
 FSPATH_booting.o := booting.html
 
 # customized build rules
@@ -71,10 +71,18 @@ cmd_as_o_html = $(CC) $(a_flags) -c -o $@ \
 		-DUBOOT_LIST_NAME="fsdata_ulist_$(call strip_path,$(FSPATH_$(@F)))" \
 		$(srctree)/$(src)/embed.S
 
-$(obj)/%.o: $(obj)/%.html FORCE
+$(obj)/%.o: $(obj)/.mod/%.html FORCE
+	$(call cmd,force_checksrc)
+	$(call if_changed_dep,as_o_html)
+
+# Static files (not generated, already in source tree)
+$(obj)/%.o: $(src)/%.html FORCE
 	$(call cmd,force_checksrc)
 	$(call if_changed_dep,as_o_html)
 
 $(obj)/%.o: $(src)/%.css FORCE
 	$(call cmd,force_checksrc)
 	$(call if_changed_dep,as_o_html)
+
+# Clean generated .mod/ directory
+clean-files := .mod
