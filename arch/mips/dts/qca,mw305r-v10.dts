@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (C) 2026
+ *
+ * Mercury MW305R V10.0
+ * SoC: Qualcomm Atheros QCA953X
+ *
+ * GPIO layout:
+ *   GPIO12 — reset button (active-low)
+ *   GPIO13 — sys LED
+ *   GPIO14 — lan1 LED
+ *   GPIO15 — lan2 LED
+ *   GPIO16 — lan3 LED
+ *   GPIO17 — wan LED
+ */
+
+/dts-v1/;
+
+#include "qca953x.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+
+/ {
+	model = "Mercury MW305R V10.0";
+	compatible = "mercury,mw305r-v10", "qca,qca953x";
+
+	aliases {
+		spi0 = &spi0;
+		serial0 = &uart0;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
+
+	config {
+		blink_led = "green:sys";
+		system_led = "green:sys";
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led_sys: sys {
+			label = "green:sys";
+			gpios = <&gpio 13 GPIO_ACTIVE_LOW>;
+			default-state = "on";
+		};
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		reset {
+			label = "reset";
+			gpios = <&gpio 12 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+	};
+};
+
+&xtal {
+	clock-frequency = <25000000>;
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&spi0 {
+	spi-max-frequency = <25000000>;
+	status = "okay";
+
+	spi-flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "jedec,spi-nor";
+		memory-map = <0x9f000000 0x00800000>;
+		spi-max-frequency = <25000000>;
+		reg = <0>;
+	};
+};
+
+&gmac0 {
+	status = "okay";
+};
+
+&gmac1 {
+	status = "okay";
+	phy-mode = "rgmii";
+};
