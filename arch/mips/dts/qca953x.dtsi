@@ -43,6 +43,14 @@
 		reg = <0x18040000 0x100>;
 	};
 
+	gpio: gpio@18040000 {
+		compatible = "qca,ath79-gpio";
+		reg = <0x18040000 0x100>;
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <18>;
+	};
+
 	ahb {
 		compatible = "simple-bus";
 		ranges;
