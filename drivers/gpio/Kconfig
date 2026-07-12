@@ -678,6 +678,16 @@ config MT7621_GPIO
 	help
 	  Say yes here to support MediaTek MT7621 compatible GPIOs.
 
+config ATH79_GPIO
+	bool "Atheros ATH79 GPIO driver"
+	depends on DM_GPIO && ARCH_ATH79
+	default y
+	help
+	  Device model driver for GPIO controller present in Atheros
+	  ATH79 SoCs (QCA953X, QCA955X, QCA956X, etc.).
+	  Provides standard dm_gpio_ops via direct register access using
+	  the AR71XX GPIO register block at 0x18040000.
+
 config NX_GPIO
 	bool "Nexell GPIO driver"
 	depends on DM_GPIO
