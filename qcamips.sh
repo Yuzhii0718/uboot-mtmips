@@ -4,24 +4,24 @@
 #              (QCA953X / QCA955X / QCA956X / AP135 / AP143 / AP152)
 #
 # Usage:
-#   SOC=<qca953x|qca955x|qca956x|ap135|ap143|ap152> ./qcamips.sh
+#   BOARD=<qca953x|qca955x|qca956x|ap135|ap143|ap152> ./qcamips.sh
 #
 # Examples:
-#   SOC=qca953x ./qcamips.sh
-#   SOC=qca955x ./qcamips.sh
-#   SOC=qca956x ./qcamips.sh
-#   SOC=ap135  ./qcamips.sh
-#   SOC=ap143  ./qcamips.sh
-#   SOC=ap152  ./qcamips.sh
+#   BOARD=qca953x ./qcamips.sh
+#   BOARD=qca955x ./qcamips.sh
+#   BOARD=qca956x ./qcamips.sh
+#   BOARD=ap135  ./qcamips.sh
+#   BOARD=ap143  ./qcamips.sh
+#   BOARD=ap152  ./qcamips.sh
 #
 # Environment variables:
-#   SOC           Target SoC (required: qca953x, qca955x, qca956x, ap135, ap143, ap152)
+#   BOARD         Target board defconfig name (required)
 #   TOOLCHAIN     Cross-compiler prefix (auto-detected if empty)
 #   JOBS          Parallel make jobs (default: nproc)
 #   STAGING_DIR   Staging directory (passed to make)
 #
 # Output:
-#   output_qcamips/<soc>-u-boot.bin
+#   output_qcamips/<board>-u-boot.bin
 #
 # Toolchain:
 #   https://downloads.openwrt.org/releases/25.12.5/targets/ath79/generic/
@@ -39,12 +39,12 @@ set -e
 # ---------------------------------------------------------------------------
 show_help() {
 	cat <<'EOF'
-Usage: SOC=<qca953x|qca955x|qca956x|ap135|ap143|ap152> [OPTIONS] ./qcamips.sh
+Usage: BOARD=<qca953x|qca955x|qca956x|ap135|ap143|ap152> [OPTIONS] ./qcamips.sh
 
 Build U-Boot for QCA MIPS32 (QCA953X / QCA955X / QCA956X / AP135 / AP143 / AP152) platform.
 
 Required:
-  SOC=<qca953x|qca955x|qca956x|ap135|ap143|ap152>   Target SoC
+  BOARD=<qca953x|qca955x|qca956x|ap135|ap143|ap152>   Target board defconfig name
 
 Options:
   TOOLCHAIN=...   Cross-compiler prefix (auto-detected from ../openwrt*/toolchain-mips*/)
@@ -52,12 +52,12 @@ Options:
   STAGING_DIR=... Staging directory (auto-detected from TOOLCHAIN)
 
 Examples:
-  SOC=qca953x ./qcamips.sh
-  SOC=qca955x ./qcamips.sh
-  SOC=qca956x ./qcamips.sh
-  SOC=ap135  ./qcamips.sh
-  SOC=ap143  ./qcamips.sh
-  SOC=ap152  ./qcamips.sh
+  BOARD=qca953x ./qcamips.sh
+  BOARD=qca955x ./qcamips.sh
+  BOARD=qca956x ./qcamips.sh
+  BOARD=ap135  ./qcamips.sh
+  BOARD=ap143  ./qcamips.sh
+  BOARD=ap152  ./qcamips.sh
 EOF
 }
 
@@ -69,17 +69,17 @@ case "${1:-}" in
 esac
 
 # ---------------------------------------------------------------------------
-# Validate SOC
+# Validate BOARD
 # ---------------------------------------------------------------------------
-if [ -z "$SOC" ]; then
-	echo "Usage: SOC=<qca953x|qca955x|qca956x|ap135|ap143|ap152> $0"
+if [ -z "$BOARD" ]; then
+	echo "Usage: BOARD=<board> $0"
 	echo "Try '$0 --help' for more information."
 	exit 1
 fi
 
-# Match SOC by checking if corresponding defconfig exists
-SOC_DEFCONFIG="$SOC"
-UBOOT_CFG="${SOC_DEFCONFIG}_defconfig"
+# Match BOARD by checking if corresponding defconfig exists
+BOARD_DEFCONFIG="$BOARD"
+UBOOT_CFG="${BOARD_DEFCONFIG}_defconfig"
 if [ ! -f "configs/$UBOOT_CFG" ]; then
 	echo "Error: defconfig not found: configs/$UBOOT_CFG"
 	echo "Available QCA defconfigs:"
@@ -165,13 +165,13 @@ fi
 # Environment checks
 # ---------------------------------------------------------------------------
 echo "======================================================================"
-echo "QCA MIPS32 U-Boot Build (SOC=${SOC})"
+echo "QCA MIPS32 U-Boot Build (BOARD=${BOARD})"
 echo "======================================================================"
 
 command -v python3 >/dev/null 2>&1 || die "Python 3 is not installed."
 command -v "${TOOLCHAIN}gcc" >/dev/null 2>&1 || die "${TOOLCHAIN}gcc not found!"
 
-echo "SOC:           $SOC"
+echo "BOARD:         $BOARD"
 echo "Toolchain:     $TOOLCHAIN"
 echo "STAGING_DIR:   $STAGING_DIR"
 echo "Defconfig:     $UBOOT_CFG"
@@ -220,8 +220,8 @@ mkdir -p "$OUTPUT_DIR"
 MD5SUM=$(md5sum "$UBOOT_DIR/$UBOOT_BIN" | awk '{print $1}')
 echo "$UBOOT_BIN md5: $MD5SUM"
 
-UBOOTNAME="${SOC}-u-boot.bin"
+UBOOTNAME="${BOARD}-u-boot.bin"
 cp -f "$UBOOT_DIR/$UBOOT_BIN" "$OUTPUT_DIR/$UBOOTNAME"
 
-echo "${SOC} build done"
+echo "${BOARD} build done"
 echo "Output: $OUTPUT_DIR/$UBOOTNAME"
