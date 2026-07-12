@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * GPIO Hardware Verification Tool — QCA953X / ARCH_ATH79
+ * GPIO Hardware Verification Tool — QCA953X / QCA955X / QCA956X
  *
  * Copyright (C) 2026 Yuzhii0718 <admin@yuzhii0718.eu.org>
  *
- * Uses direct register access (no DM_GPIO driver available for this SoC).
+ * Uses direct register access with __raw_ variants (no byteswap)
+ * because these SoCs are Big-Endian MIPS.
  *
  * Usage:
- *   gpiotest list                        - Scan all 18 GPIOs, show states
+ *   gpiotest list                        - Scan all GPIOs, show states
  *   gpiotest blink <pin> [cnt] [ms]      - Blink GPIO (LED verification)
  *   gpiotest monitor <pin>               - Monitor GPIO input (button test)
  *   gpiotest all-leds [start] [end] [ms] - Cycle through GPIOs one by one
@@ -22,34 +23,66 @@
 #include <stdio.h>
 #include <asm/io.h>
 #include <mach/ar71xx_regs.h>
+#include <mach/ath79.h>
 #include <linux/errno.h>
 
 /* =================================================================
- * Direct Register Backend — QCA953X
+ * Direct Register Backend — QCA953X / QCA955X / QCA956X
  *
- * GPIO base: 0x18040000
- * OE register: bit=1 → INPUT, bit=0 → OUTPUT  (inverted from typical)
+ * GPIO base: 0x18040000 (AR71XX_GPIO_BASE)
+ * OE register: bit=1 → INPUT, bit=0 → OUTPUT
  * SET/CLEAR registers for atomic output writes
+ *
+ * All accesses use __raw_readl/__raw_writel and _32 variants
+ * (not _le32) — these SoCs are Big-Endian MIPS, _le32 variants
+ * byte-swap which corrupts bit positions for MMIO registers.
  * ================================================================= */
 
-#define GPIOTEST_GPIO_MAX	QCA953X_GPIO_COUNT	/* 18 */
-
 static void __iomem *gpio_regs;
+static int gpio_count;		/* runtime SoC detection */
+static const char *soc_name;	/* "QCA953X" / "QCA955X" / "QCA956X" */
 
 /* Per-pin tracking: whether currently configured as output */
-static u8 gpio_is_output[GPIOTEST_GPIO_MAX];
+static u8 *gpio_is_output;
+
+static void gpiotest_soc_init(void)
+{
+	if (gpio_count)
+		return;	/* already initialized */
+
+	if (soc_is_qca955x()) {
+		gpio_count = QCA955X_GPIO_COUNT;	/* 24 */
+		soc_name = "QCA955X";
+	} else if (soc_is_qca956x()) {
+		gpio_count = QCA956X_GPIO_COUNT;	/* 23 */
+		soc_name = "QCA956X";
+	} else {
+		/* default: QCA953X */
+		gpio_count = QCA953X_GPIO_COUNT;	/* 18 */
+		soc_name = "QCA953X";
+	}
+
+	gpio_is_output = calloc(gpio_count, sizeof(u8));
+}
 
 static int gpiotest_init(void)
 {
+	gpiotest_soc_init();
+
 	if (!gpio_regs)
 		gpio_regs = map_physmem(AR71XX_GPIO_BASE,
 					AR71XX_GPIO_SIZE, MAP_NOCACHE);
-	return gpio_regs ? 0 : -ENOMEM;
+	if (!gpio_regs)
+		return -ENOMEM;
+	if (!gpio_is_output)
+		return -ENOMEM;
+
+	return 0;
 }
 
 static int gpiotest_request(uint gpio, void *unused)
 {
-	if (gpio >= GPIOTEST_GPIO_MAX)
+	if (gpio >= (uint)gpio_count)
 		return -EINVAL;
 	return gpiotest_init();
 }
@@ -70,23 +103,23 @@ static int gpiotest_dir_output(uint gpio, int value, void *unused)
 
 	/* set initial output value via SET/CLEAR register */
 	if (value)
-		writel(BIT(gpio), gpio_regs + AR71XX_GPIO_REG_SET);
+		__raw_writel(BIT(gpio), gpio_regs + AR71XX_GPIO_REG_SET);
 	else
-		writel(BIT(gpio), gpio_regs + AR71XX_GPIO_REG_CLEAR);
+		__raw_writel(BIT(gpio), gpio_regs + AR71XX_GPIO_REG_CLEAR);
 	return 0;
 }
 
 static int gpiotest_read(uint gpio, void *unused)
 {
-	return !!(readl(gpio_regs + AR71XX_GPIO_REG_IN) & BIT(gpio));
+	return !!(__raw_readl(gpio_regs + AR71XX_GPIO_REG_IN) & BIT(gpio));
 }
 
 static int gpiotest_write(uint gpio, int value, void *unused)
 {
 	if (value)
-		writel(BIT(gpio), gpio_regs + AR71XX_GPIO_REG_SET);
+		__raw_writel(BIT(gpio), gpio_regs + AR71XX_GPIO_REG_SET);
 	else
-		writel(BIT(gpio), gpio_regs + AR71XX_GPIO_REG_CLEAR);
+		__raw_writel(BIT(gpio), gpio_regs + AR71XX_GPIO_REG_CLEAR);
 	return 0;
 }
 
@@ -99,9 +132,9 @@ static int gpiotest_get_raw_value(uint gpio)
 	if (ret)
 		return ret;
 
-	oe  = readl(gpio_regs + AR71XX_GPIO_REG_OE);
-	in  = readl(gpio_regs + AR71XX_GPIO_REG_IN);
-	out = readl(gpio_regs + AR71XX_GPIO_REG_OUT);
+	oe  = __raw_readl(gpio_regs + AR71XX_GPIO_REG_OE);
+	in  = __raw_readl(gpio_regs + AR71XX_GPIO_REG_IN);
+	out = __raw_readl(gpio_regs + AR71XX_GPIO_REG_OUT);
 
 	if (oe & BIT(gpio))
 		return !!(in & BIT(gpio));	/* input pin */
@@ -111,16 +144,17 @@ static int gpiotest_get_raw_value(uint gpio)
 
 static const char *gpiotest_dir_str(uint gpio)
 {
-	u32 oe = readl(gpio_regs + AR71XX_GPIO_REG_OE);
+	u32 oe = __raw_readl(gpio_regs + AR71XX_GPIO_REG_OE);
 
 	return (oe & BIT(gpio)) ? "IN" : "OUT";
 }
 
 /* =================================================================
- * Command Implementations
+ * Per-SoC Pin Notes (informational only)
  * ================================================================= */
 
-static const char *qca953x_gpio_notes[GPIOTEST_GPIO_MAX] = {
+/* QCA953X: 18 GPIOs, SPI on 9-14, UART on 0-1 */
+static const char * const qca953x_notes[] = {
 	[0]  = "[UART0_SOUT / GPIO]",
 	[1]  = "[UART0_SIN  / GPIO]",
 	[9]  = "[SPI_CS0    / GPIO]",
@@ -130,6 +164,55 @@ static const char *qca953x_gpio_notes[GPIOTEST_GPIO_MAX] = {
 	[13] = "[SPI_MOSI   / GPIO]",
 	[14] = "[SPI_MISO   / GPIO]",
 };
+
+/* QCA955X: 24 GPIOs, SPI on 10-15 (different pinmux from 953X) */
+static const char * const qca955x_notes[] = {
+	[8]  = "[UART0_SOUT / GPIO]",
+	[9]  = "[UART0_SIN  / GPIO]",
+	[10] = "[SPI_CS0    / GPIO]",
+	[11] = "[SPI_CS1    / GPIO]",
+	[12] = "[SPI_CLK    / GPIO]",
+	[13] = "[SPI_MOSI   / GPIO]",
+	[14] = "[SPI_MISO   / GPIO]",
+	[15] = "[SPI_CS2    / GPIO]",
+};
+
+/* QCA956X: 23 GPIOs, SPI on 10-15 (similar to 955X) */
+static const char * const qca956x_notes[] = {
+	[8]  = "[UART0_SOUT / GPIO]",
+	[9]  = "[UART0_SIN  / GPIO]",
+	[10] = "[SPI_CS0    / GPIO]",
+	[11] = "[SPI_CS1    / GPIO]",
+	[12] = "[SPI_CLK    / GPIO]",
+	[13] = "[SPI_MOSI   / GPIO]",
+	[14] = "[SPI_MISO   / GPIO]",
+	[15] = "[SPI_CS2    / GPIO]",
+};
+
+static const char *gpiotest_pin_note(uint gpio)
+{
+	const char * const *table = NULL;
+	int max = 0;
+
+	if (gpio_count == QCA955X_GPIO_COUNT) {
+		table = qca955x_notes;
+		max = ARRAY_SIZE(qca955x_notes);
+	} else if (gpio_count == QCA956X_GPIO_COUNT) {
+		table = qca956x_notes;
+		max = ARRAY_SIZE(qca956x_notes);
+	} else {
+		table = qca953x_notes;
+		max = ARRAY_SIZE(qca953x_notes);
+	}
+
+	if (gpio < (uint)max && table[gpio])
+		return table[gpio];
+	return "";
+}
+
+/* =================================================================
+ * Command Implementations
+ * ================================================================= */
 
 /* ---------- gpiotest list ---------- */
 static int do_gpiotest_list(void)
@@ -142,18 +225,17 @@ static int do_gpiotest_list(void)
 		return CMD_RET_FAILURE;
 	}
 
-	printf("=== QCA953X GPIO Pins (GPIO#0 ~ GPIO#%d) ===\n",
-	       GPIOTEST_GPIO_MAX - 1);
+	printf("=== %s GPIO Pins (GPIO#0 ~ GPIO#%d, %d total) ===\n",
+	       soc_name, gpio_count - 1, gpio_count);
 	printf("%-4s %-4s %-5s %-7s %s\n",
 	       "PIN", "DIR", "VALUE", "OE-REG", "NOTES");
 	printf("---- ---- ----- ------- ---------------------------------------\n");
 
-	for (i = 0; i < GPIOTEST_GPIO_MAX; i++) {
+	for (i = 0; i < gpio_count; i++) {
 		const char *dir = gpiotest_dir_str(i);
 		int val = gpiotest_get_raw_value(i);
-		u32 oe = readl(gpio_regs + AR71XX_GPIO_REG_OE);
-		const char *notes = qca953x_gpio_notes[i] ?
-				    qca953x_gpio_notes[i] : "";
+		u32 oe = __raw_readl(gpio_regs + AR71XX_GPIO_REG_OE);
+		const char *notes = gpiotest_pin_note(i);
 
 		if (val < 0)
 			printf("%-4d %-4s %-5s %-7s %s\n",
@@ -167,7 +249,6 @@ static int do_gpiotest_list(void)
 
 	printf("---- ---- ----- ------- ---------------------------------------\n");
 	printf("OE bit=1: INPUT,  OE bit=0: OUTPUT\n");
-	printf("Total GPIOs: %d\n", GPIOTEST_GPIO_MAX);
 
 	return CMD_RET_SUCCESS;
 }
@@ -291,8 +372,9 @@ static int do_gpiotest_all_leds(uint start, uint end, int interval_ms)
 {
 	uint i;
 
-	if (end >= GPIOTEST_GPIO_MAX)
-		end = GPIOTEST_GPIO_MAX - 1;
+	gpiotest_soc_init();
+	if (end >= (uint)gpio_count)
+		end = gpio_count - 1;
 	if (start > end) {
 		uint tmp = start;
 		start = end;
@@ -426,7 +508,8 @@ static int do_gpiotest(struct cmd_tbl *cmdtp, int flag, int argc,
 
 	/* gpiotest all-leds [start] [end] [interval_ms] */
 	if (!strcmp(subcmd, "all-leds")) {
-		uint start = 0, end = GPIOTEST_GPIO_MAX - 1;
+		gpiotest_soc_init();
+		uint start = 0, end = gpio_count - 1;
 		int interval = 500;
 
 		if (argc >= 3)
@@ -466,14 +549,14 @@ static int do_gpiotest(struct cmd_tbl *cmdtp, int flag, int argc,
 
 U_BOOT_CMD(
 	gpiotest, 6, 0, do_gpiotest,
-	"GPIO hardware verification tool (QCA953X direct register)",
-	"list                         - Scan all 18 GPIOs, show states\n"
+	"GPIO hardware verification tool (QCA953X/955X/956X direct register)",
+	"list                         - Scan all GPIOs, show states\n"
 	"blink <pin> [cnt] [ms]       - Blink GPIO for LED identification\n"
 	"monitor <pin>                - Monitor GPIO input for button test\n"
 	"all-leds [start] [end] [ms]  - Cycle through GPIOs one by one\n"
 	"out <pin> <0|1>              - Set GPIO output value\n"
 	"in <pin>                     - Read GPIO input value\n"
 	"\n"
-	"QCA953X has 18 GPIOs (GPIO#0 ~ GPIO#17)\n"
+	"Supports QCA953X (18 GPIOs), QCA955X (24 GPIOs), QCA956X (23 GPIOs)\n"
 	"OE bit=1: INPUT, OE bit=0: OUTPUT"
 );
