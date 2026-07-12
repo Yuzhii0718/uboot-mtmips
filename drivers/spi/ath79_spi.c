@@ -40,7 +40,7 @@ static void spi_cs_deactivate(struct udevice *dev)
 	struct ath79_spi_priv *priv = dev_get_priv(bus);
 
 	writel(AR71XX_SPI_IOC_CS_ALL, priv->regs + AR71XX_SPI_REG_IOC);
-	writel(0, priv->regs + AR71XX_SPI_REG_FS);
+	writel(AR71XX_SPI_FS_GPIO, priv->regs + AR71XX_SPI_REG_FS);
 }
 
 static int ath79_spi_claim_bus(struct udevice *dev)
@@ -162,7 +162,6 @@ static int ath79_spi_set_speed(struct udevice *bus, uint speed)
 	clrsetbits_be32(priv->regs + AR71XX_SPI_REG_CTRL,
 			AR71XX_SPI_CTRL_DIV_MASK,
 			ATH79_SPI_CLK_DIV(div));
-	writel(0, priv->regs + AR71XX_SPI_REG_FS);
 	return 0;
 }
 
@@ -184,11 +183,13 @@ static int ath79_spi_probe(struct udevice *bus)
 				 AR71XX_SPI_SIZE,
 				 MAP_NOCACHE);
 
-	/* Init SPI Hardware, disable remap, set clock */
+	/* Init SPI Hardware, disable remap, set clock.
+	 * Keep FS in GPIO mode so shared SPI/GPIO pins (MOSI=GPIO13,
+	 * CLK=GPIO12, etc.) remain usable as GPIO between transfers.
+	 */
 	writel(AR71XX_SPI_FS_GPIO, priv->regs + AR71XX_SPI_REG_FS);
 	writel(AR71XX_SPI_CTRL_RD | ATH79_SPI_CLK_DIV(8),
 	       priv->regs + AR71XX_SPI_REG_CTRL);
-	writel(0, priv->regs + AR71XX_SPI_REG_FS);
 
 	return 0;
 }
