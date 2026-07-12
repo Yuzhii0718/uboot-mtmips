@@ -3169,21 +3169,24 @@ config CMD_BTNCHK
 
 config CMD_GPIOTEST
 	bool "GPIO hardware verification tool"
-	depends on DM_GPIO
+	depends on DM_GPIO || ARCH_ATH79
 	default n
 	help
 	  Enable gpiotest command for GPIO hardware verification.
-	  Provides sub-commands to scan all pins, blink LEDs, and monitor
-	  button inputs — useful for hardware bringup on boards that cannot
-	  run OpenWrt/Linux.
+	  On DM_GPIO platforms (MT7628 etc.), uses cmd/gpiotest.c with the
+	  U-Boot DM GPIO framework.
+	  On ARCH_ATH79 platforms (QCA953X etc.), uses cmd/gpiotest_ath79.c
+	  with direct register access.
 
 	  Sub-commands:
 	    gpiotest list [bank]              - Scan GPIO states
 	    gpiotest blink <pin> [cnt] [ms]   - Blink a pin (LED test)
 	    gpiotest monitor <pin>            - Monitor input (button test)
 	    gpiotest all-leds [s] [e] [ms]    - Cycle pins one-by-one
+	    gpiotest out <pin> <0|1>          - Set output value
+	    gpiotest in <pin>                 - Read input value
 
-	  Also provides a gpioscan shortcut command.
+	  On DM_GPIO platforms, also provides a gpioscan shortcut command.
 
 endmenu
 

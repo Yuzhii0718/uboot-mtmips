@@ -243,7 +243,11 @@ obj-$(CONFIG_CMD_AVB) += avb.o
 obj-$(CONFIG_CMD_BTNCHK) += btnchk.o led_blink.o
 
 # GPIO hardware verification
+ifdef CONFIG_ARCH_ATH79
+obj-$(CONFIG_CMD_GPIOTEST) += gpiotest_ath79.o
+else
 obj-$(CONFIG_CMD_GPIOTEST) += gpiotest.o
+endif
 
 # Foundries.IO SCP03
 obj-$(CONFIG_CMD_SCP03) += scp03.o
