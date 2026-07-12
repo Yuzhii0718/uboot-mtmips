@@ -31,11 +31,16 @@ struct ath79_gpio_priv {
 	int gpio_count;
 };
 
+/*
+ * All register accesses use __raw_readl/__raw_writel and _32 variants
+ * (not _le32) because QCA MIPS SoCs are big-endian — the _le32
+ * variants do a byteswap that corrupts bit positions for MMIO registers.
+ */
 static int ath79_gpio_get_value(struct udevice *dev, unsigned int offset)
 {
 	struct ath79_gpio_priv *priv = dev_get_priv(dev);
 
-	return !!(readl(priv->regs + ATH79_GPIO_REG_IN) & BIT(offset));
+	return !!(__raw_readl(priv->regs + ATH79_GPIO_REG_IN) & BIT(offset));
 }
 
 static int ath79_gpio_set_value(struct udevice *dev, unsigned int offset,
@@ -43,7 +48,7 @@ static int ath79_gpio_set_value(struct udevice *dev, unsigned int offset,
 {
 	struct ath79_gpio_priv *priv = dev_get_priv(dev);
 
-	writel(BIT(offset), priv->regs +
+	__raw_writel(BIT(offset), priv->regs +
 	       (value ? ATH79_GPIO_REG_SET : ATH79_GPIO_REG_CLEAR));
 
 	return 0;
@@ -54,7 +59,7 @@ static int ath79_gpio_direction_input(struct udevice *dev, unsigned int offset)
 	struct ath79_gpio_priv *priv = dev_get_priv(dev);
 
 	/* OE bit=1 → input */
-	setbits_le32(priv->regs + ATH79_GPIO_REG_OE, BIT(offset));
+	setbits_32(priv->regs + ATH79_GPIO_REG_OE, BIT(offset));
 
 	return 0;
 }
@@ -68,7 +73,7 @@ static int ath79_gpio_direction_output(struct udevice *dev, unsigned int offset,
 	ath79_gpio_set_value(dev, offset, value);
 
 	/* OE bit=0 → output */
-	clrbits_le32(priv->regs + ATH79_GPIO_REG_OE, BIT(offset));
+	clrbits_32(priv->regs + ATH79_GPIO_REG_OE, BIT(offset));
 
 	return 0;
 }
@@ -76,7 +81,7 @@ static int ath79_gpio_direction_output(struct udevice *dev, unsigned int offset,
 static int ath79_gpio_get_function(struct udevice *dev, unsigned int offset)
 {
 	struct ath79_gpio_priv *priv = dev_get_priv(dev);
-	u32 oe = readl(priv->regs + ATH79_GPIO_REG_OE);
+	u32 oe = __raw_readl(priv->regs + ATH79_GPIO_REG_OE);
 
 	return (oe & BIT(offset)) ? GPIOF_INPUT : GPIOF_OUTPUT;
 }
