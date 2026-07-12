@@ -394,7 +394,7 @@ static int do_btnchk(struct cmd_tbl *cmdtp, int flag, int argc,
 		printf("btnchk: no configured key is pressed (use 'btnchk help' for setup)\n");
 		/* Let blink run for ~1 second before cleanup */
 		mdelay(1000);
-		led_blink_stop("blink_led");
+		led_control("ledblink", "blink_led", "0");
 		btnchk_free_keys(keys, key_count);
 		return CMD_RET_SUCCESS;
 	}
@@ -455,7 +455,7 @@ static int do_btnchk(struct cmd_tbl *cmdtp, int flag, int argc,
 
 	printf("\n");
 
-	led_blink_stop("blink_led");
+	led_control("ledblink", "blink_led", "0");
 
 	if (counter == 4) {
 		led_control("led", "system_led", "on");
