@@ -77,15 +77,15 @@ if [ -z "$SOC" ]; then
 	exit 1
 fi
 
-case "$SOC" in
-	qca953x|qca955x|qca956x|tp934x|ap135|ap143|ap152|cus249)
-		SOC_DEFCONFIG="$SOC"
-		;;
-	*)
-		echo "Error: Unsupported SOC='$SOC'. Valid values: qca953x, qca955x, qca956x, tp934x, ap135, ap143, ap152, cus249"
-		exit 1
-		;;
-esac
+# Match SOC by checking if corresponding defconfig exists
+SOC_DEFCONFIG="$SOC"
+UBOOT_CFG="${SOC_DEFCONFIG}_defconfig"
+if [ ! -f "configs/$UBOOT_CFG" ]; then
+	echo "Error: defconfig not found: configs/$UBOOT_CFG"
+	echo "Available QCA defconfigs:"
+	ls configs/ | grep -E '^(qca|ap1|cus|tp93).*_defconfig$' | sed 's/_defconfig$//' | sort
+	exit 1
+fi
 
 UBOOT_DIR=.
 OUTPUT_DIR="output_qcamips"
@@ -162,11 +162,6 @@ if [ -z "$STAGING_DIR" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Build config
-# ---------------------------------------------------------------------------
-UBOOT_CFG="${SOC_DEFCONFIG}_defconfig"
-
-# ---------------------------------------------------------------------------
 # Environment checks
 # ---------------------------------------------------------------------------
 echo "======================================================================"
@@ -180,8 +175,6 @@ echo "SOC:           $SOC"
 echo "Toolchain:     $TOOLCHAIN"
 echo "STAGING_DIR:   $STAGING_DIR"
 echo "Defconfig:     $UBOOT_CFG"
-
-[ -f "$UBOOT_DIR/configs/$UBOOT_CFG" ] || die "Defconfig not found: $UBOOT_DIR/configs/$UBOOT_CFG"
 
 # ---------------------------------------------------------------------------
 # Parallel jobs
