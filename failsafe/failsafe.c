@@ -73,6 +73,16 @@ int __weak failsafe_write_uboot(const void *data, size_t size)
 	return -ENOSYS;
 }
 
+int __weak failsafe_validate_art(const void *data, size_t size)
+{
+	return -ENOSYS;
+}
+
+int __weak failsafe_write_art(const void *data, size_t size)
+{
+	return -ENOSYS;
+}
+
 static int output_plain_file(struct httpd_response *response,
 			     const char *filename)
 {
@@ -180,6 +190,15 @@ static void upload_handler(enum httpd_uri_handler_status status,
 				return;
 			}
 			type_name = "U-Boot / Bootloader";
+		} else if (ut && ut->data && !strcmp(ut->data, "rf")) {
+			strcpy(update_type, "rf");
+			if (failsafe_validate_art(fw->data, fw->size)) {
+				if (output_plain_file(response, "validate_fail.html"))
+					response->info.code = 500;
+
+				return;
+			}
+			type_name = "RF Calibration";
 		} else {
 			strcpy(update_type, "fw");
 			if (failsafe_validate_image(fw->data, fw->size)) {
@@ -328,6 +347,10 @@ static void result_handler(enum httpd_uri_handler_status status,
 			if (update_type_id == upload_id &&
 			    !strcmp(update_type, "bl"))
 				st->ret = failsafe_write_uboot(upload_data,
+							       upload_size);
+			else if (update_type_id == upload_id &&
+				 !strcmp(update_type, "rf"))
+				st->ret = failsafe_write_art(upload_data,
 							       upload_size);
 			else
 				st->ret = failsafe_write_image(upload_data,
