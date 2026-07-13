@@ -22,6 +22,8 @@
 /* QCA partition names — must match CONFIG_MTDPARTS_DEFAULT */
 #define QCA_FIRMWARE_PART	"firmware"
 #define QCA_UBOOT_PART		"u-boot"
+#define QCA_ART_PART		"ART"
+#define QCA_ART_PART_ALT	"art"
 
 /* ------------------------------------------------------------------ */
 
@@ -211,4 +213,126 @@ int failsafe_write_uboot(const void *data, size_t size)
 	printf("\n*** Upgrading U-Boot (%zu bytes) ***\n", size);
 	printf("*** WARNING: Do not power off during write! ***\n\n");
 	return qca_mtd_erase_write(QCA_UBOOT_PART, data, size);
+}
+
+/* ------------------------------------------------------------------ */
+/* RF Calibration (ART partition)                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * failsafe_validate_art() - validate RF calibration data before writing
+ *
+ * Looks up the actual ART partition size from MTD and checks that
+ * the uploaded data fits within it.
+ * Returns 0 on success, negative on error.
+ */
+int failsafe_validate_art(const void *data, size_t size)
+{
+	const char *part_names[] = { QCA_ART_PART, QCA_ART_PART_ALT };
+	struct mtd_info *mtd = NULL;
+	int i;
+
+	if (!data || !size) {
+		printf("Error: RF calibration data is empty\n");
+		return -EINVAL;
+	}
+
+	qca_mtd_setup();
+
+	for (i = 0; i < ARRAY_SIZE(part_names); i++) {
+		mtd = get_mtd_device_nm(part_names[i]);
+		if (!IS_ERR_OR_NULL(mtd))
+			break;
+	}
+
+	if (IS_ERR_OR_NULL(mtd)) {
+		printf("Error: ART partition not found"
+		       " (tried '%s', '%s')\n",
+		       QCA_ART_PART, QCA_ART_PART_ALT);
+		return -ENODEV;
+	}
+
+	if (size > mtd->size) {
+		printf("Error: RF calibration data (%zu bytes)"
+		       " exceeds partition size (%llu bytes)\n",
+		       size, mtd->size);
+		put_mtd_device(mtd);
+		return -EFBIG;
+	}
+
+	put_mtd_device(mtd);
+	return 0;
+}
+
+/**
+ * failsafe_write_art() - write RF calibration data to ART partition
+ *
+ * Erases the "ART" (or "art") MTD partition and writes the new
+ * calibration data.  The ART partition contains WiFi TX power,
+ * MAC address, and other factory calibration values.
+ * WARNING: A bad ART write may cause WiFi radio malfunction.
+ */
+int failsafe_write_art(const void *data, size_t size)
+{
+	const char *part_names[] = { QCA_ART_PART, QCA_ART_PART_ALT };
+	struct mtd_info *mtd = NULL;
+	int i;
+
+	qca_mtd_setup();
+
+	for (i = 0; i < ARRAY_SIZE(part_names); i++) {
+		mtd = get_mtd_device_nm(part_names[i]);
+		if (!IS_ERR_OR_NULL(mtd))
+			break;
+	}
+
+	if (IS_ERR_OR_NULL(mtd)) {
+		printf("Error: ART partition not found"
+		       " (tried '%s', '%s')\n",
+		       QCA_ART_PART, QCA_ART_PART_ALT);
+		return -ENODEV;
+	}
+
+	printf("\n*** Upgrading ART calibration (%zu bytes) ***\n", size);
+	printf("*** WARNING: Bad calibration data can break WiFi! ***\n\n");
+
+	{
+		struct erase_info ei;
+		int ret;
+
+		if (size > mtd->size) {
+			printf("Error: data (%zu bytes) exceeds"
+			       " partition size (%llu bytes)\n",
+			       size, mtd->size);
+			put_mtd_device(mtd);
+			return -ENOSPC;
+		}
+
+		printf("Erasing '%s' (0x%llx bytes) ... ", mtd->name, mtd->size);
+		memset(&ei, 0, sizeof(ei));
+		ei.mtd = mtd;
+		ei.addr = 0;
+		ei.len = mtd->size;
+		ret = mtd_erase(mtd, &ei);
+		if (ret) {
+			printf("FAILED (err=%d)\n", ret);
+			put_mtd_device(mtd);
+			return ret;
+		}
+		printf("OK\n");
+
+		printf("Writing %zu bytes to '%s' ... ", size, mtd->name);
+		ret = mtd_write(mtd, 0, size, NULL, (const u_char *)data);
+		if (ret) {
+			printf("FAILED (err=%d)\n", ret);
+			put_mtd_device(mtd);
+			return ret;
+		}
+		printf("OK\n");
+	}
+
+	printf("\n*** ART upgrade completed! ***\n");
+
+	put_mtd_device(mtd);
+	return 0;
 }

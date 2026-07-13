@@ -21,6 +21,8 @@
 #define QCA_LEGACY_ROOTFS_PART	"rootfs"
 #define QCA_LEGACY_UIMAGE_PART	"uImage"
 #define QCA_LEGACY_UBOOT_PART	"u-boot"
+#define QCA_LEGACY_ART_PART	"ART"
+#define QCA_LEGACY_ART_PART_ALT	"art"
 
 /* ------------------------------------------------------------------ */
 
@@ -254,4 +256,73 @@ int failsafe_write_uboot(const void *data, size_t size)
 	printf("\n*** Upgrading U-Boot (%zu bytes) ***\n", size);
 	printf("*** WARNING: Do not power off during write! ***\n\n");
 	return nor_erase_write(QCA_LEGACY_UBOOT_PART, data, size);
+}
+
+/* ------------------------------------------------------------------ */
+/* RF Calibration (ART partition)                                      */
+/* ------------------------------------------------------------------ */
+
+int failsafe_validate_art(const void *data, size_t size)
+{
+	const char *part_names[] = { QCA_LEGACY_ART_PART, QCA_LEGACY_ART_PART_ALT };
+	struct mtd_info *mtd = NULL;
+	int i;
+
+	if (!data || !size) {
+		printf("Error: RF calibration data is empty\n");
+		return -EINVAL;
+	}
+
+	qca_mtd_setup();
+
+	for (i = 0; i < ARRAY_SIZE(part_names); i++) {
+		mtd = get_mtd_device_nm(part_names[i]);
+		if (!IS_ERR_OR_NULL(mtd))
+			break;
+	}
+
+	if (IS_ERR_OR_NULL(mtd)) {
+		printf("Error: ART partition not found"
+		       " (tried '%s', '%s')\n",
+		       QCA_LEGACY_ART_PART, QCA_LEGACY_ART_PART_ALT);
+		return -ENODEV;
+	}
+
+	if (size > mtd->size) {
+		printf("Error: RF calibration data (%zu bytes)"
+		       " exceeds partition size (%llu bytes)\n",
+		       size, mtd->size);
+		put_mtd_device(mtd);
+		return -EFBIG;
+	}
+
+	put_mtd_device(mtd);
+	return 0;
+}
+
+int failsafe_write_art(const void *data, size_t size)
+{
+	const char *part_names[] = { QCA_LEGACY_ART_PART, QCA_LEGACY_ART_PART_ALT };
+	struct mtd_info *mtd = NULL;
+	int i;
+
+	qca_mtd_setup();
+
+	for (i = 0; i < ARRAY_SIZE(part_names); i++) {
+		mtd = get_mtd_device_nm(part_names[i]);
+		if (!IS_ERR_OR_NULL(mtd))
+			break;
+	}
+
+	if (IS_ERR_OR_NULL(mtd)) {
+		printf("Error: ART partition not found"
+		       " (tried '%s', '%s')\n",
+		       QCA_LEGACY_ART_PART, QCA_LEGACY_ART_PART_ALT);
+		return -ENODEV;
+	}
+
+	printf("\n*** Upgrading ART calibration (%zu bytes) ***\n", size);
+	printf("*** WARNING: Bad calibration data can break WiFi! ***\n\n");
+
+	return nor_erase_write_part(mtd, data, size);
 }
