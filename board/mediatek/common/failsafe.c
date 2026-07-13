@@ -9,7 +9,10 @@
 
 #include <command.h>
 #include <errno.h>
+#include <linux/kernel.h>
+#include <linux/mtd/mtd.h>
 #include <linux/string.h>
+#include <mtd.h>
 #include <asm/global_data.h>
 #include "upgrade_helper.h"
 #include "colored_print.h"
@@ -158,5 +161,120 @@ int failsafe_write_uboot(const void *data, size_t size)
 	if (dpe->do_post_action)
 		dpe->do_post_action(dpe->priv, dpe, data, size);
 
+	return 0;
+}
+
+/* ---------------------------------------------------------------- */
+/* RF Calibration (Factory partition)                                */
+/* ---------------------------------------------------------------- */
+
+#define MTK_FACTORY_PART	"Factory"
+#define MTK_FACTORY_PART_ALT	"factory"
+
+int failsafe_validate_art(const void *data, size_t size)
+{
+	const char *part_names[] = { MTK_FACTORY_PART, MTK_FACTORY_PART_ALT };
+	struct mtd_info *mtd = NULL;
+	int i;
+
+	if (!data || !size) {
+		printf("Error: RF calibration data is empty\n");
+		return -EINVAL;
+	}
+
+	mtd_probe_devices();
+
+	for (i = 0; i < ARRAY_SIZE(part_names); i++) {
+		mtd = get_mtd_device_nm(part_names[i]);
+		if (!IS_ERR_OR_NULL(mtd))
+			break;
+	}
+
+	if (IS_ERR_OR_NULL(mtd)) {
+		printf("Error: Factory partition not found"
+		       " (tried '%s', '%s')\n",
+		       MTK_FACTORY_PART, MTK_FACTORY_PART_ALT);
+		return -ENODEV;
+	}
+
+	if (size > mtd->size) {
+		printf("Error: RF calibration data (%zu bytes)"
+		       " exceeds partition size (%llu bytes)\n",
+		       size, mtd->size);
+		put_mtd_device(mtd);
+		return -EFBIG;
+	}
+
+	put_mtd_device(mtd);
+	return 0;
+}
+
+int failsafe_write_art(const void *data, size_t size)
+{
+	/* Try "Factory" first, then "factory" */
+	const char *part_names[] = { MTK_FACTORY_PART, MTK_FACTORY_PART_ALT };
+	struct mtd_info *mtd = NULL;
+	int i;
+
+	mtd_probe_devices();
+
+	for (i = 0; i < ARRAY_SIZE(part_names); i++) {
+		mtd = get_mtd_device_nm(part_names[i]);
+		if (!IS_ERR_OR_NULL(mtd))
+			break;
+	}
+
+	if (IS_ERR_OR_NULL(mtd)) {
+		printf("Error: Factory partition not found"
+		       " (tried '%s', '%s')\n",
+		       MTK_FACTORY_PART, MTK_FACTORY_PART_ALT);
+		return -ENODEV;
+	}
+
+	if (size > mtd->size) {
+		printf("Error: RF calibration data (%zu bytes)"
+		       " exceeds partition size (%llu bytes)\n",
+		       size, mtd->size);
+		put_mtd_device(mtd);
+		return -ENOSPC;
+	}
+
+	printf("\n");
+	cprintln(PROMPT, "*** Upgrading RF Calibration (%s) ***", mtd->name);
+	cprintln(PROMPT, "*** Data: %zd (0x%zx) bytes ***", size, size);
+	printf("\n");
+
+	{
+		struct erase_info ei;
+		int ret;
+
+		printf("Erasing '%s' (0x%llx bytes) ... ", mtd->name, mtd->size);
+		memset(&ei, 0, sizeof(ei));
+		ei.mtd = mtd;
+		ei.addr = 0;
+		ei.len = mtd->size;
+		ret = mtd_erase(mtd, &ei);
+		if (ret) {
+			printf("FAILED (err=%d)\n", ret);
+			put_mtd_device(mtd);
+			return ret;
+		}
+		printf("OK\n");
+
+		printf("Writing %zu bytes to '%s' ... ", size, mtd->name);
+		ret = mtd_write(mtd, 0, size, NULL, (const u_char *)data);
+		if (ret) {
+			printf("FAILED (err=%d)\n", ret);
+			put_mtd_device(mtd);
+			return ret;
+		}
+		printf("OK\n");
+	}
+
+	printf("\n");
+	cprintln(PROMPT, "*** RF Calibration upgrade completed! ***");
+	printf("\n");
+
+	put_mtd_device(mtd);
 	return 0;
 }
